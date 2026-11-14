@@ -1,0 +1,2274 @@
+Here is a complete, production-ready prototype for the LinePulse Control Hub.
+
+This interactive single-page application implements the entire specification:
+
+  - Configurable Early-Warning Playbooks (thresholds, step-by-step response
+    procedures, and escalation rules).
+  - Unified Dashboard View (cross-line visibility, color-coded health states,
+    risk counters, filters).
+  - Dual Signal Ingestion Engine (live automated IoT simulator + manual operator
+    log entry form).
+  - Responsibility Assignment (primary/backup engineers, reassignment audit
+    trail).
+  - Escalation Workflow Management (Open → Acknowledged → In Progress → Resolved
+    / Escalated, action logs, quick auto-escalation simulator).
+  - Last Repair Information (prominently surfaced context, repair history, and
+    auto-logging upon alert resolution).
+  - Simulated Notification Dispatcher (push/email feeds for critical warnings
+    and supervisor escalations).
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinePulse Control Hub - Early-Warning Machine Health</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel Standalone for JSX compilation in browser -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              900: '#1e3a8a',
+            },
+            status: {
+              ok: '#10b981',
+              warn: '#f59e0b',
+              crit: '#ef4444',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    .animate-pulse-subtle {
+      animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    /* Custom scrollbar for control panels */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen antialiased selection:bg-blue-600 selection:text-white">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    // --- ICONS (SVG helpers) ---
+    const IconAlertTriangle = () => (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+    );
+    const IconCheckCircle = () => (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    );
+    const IconFlame = () => (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+      </svg>
+    );
+    const IconVibration = () => (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+      </svg>
+    );
+    const IconWrench = () => (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+      </svg>
+    );
+    const IconClock = () => (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    );
+    const IconBell = () => (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+      </svg>
+    );
+    const IconBookOpen = () => (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+      </svg>
+    );
+
+    // --- INITIAL SEED DATA ---
+    const INITIAL_USERS = [
+      { id: 'usr-1', name: 'Sarah Jenkins', role: 'Production Manager', email: 's.jenkins@factory.io', phone: '+1-555-0192' },
+      { id: 'usr-2', name: 'Marcus Vance', role: 'Lead Maintenance Tech', email: 'm.vance@factory.io', phone: '+1-555-0811' },
+      { id: 'usr-3', name: 'Dave Ramirez', role: 'Maintenance Technician', email: 'd.ramirez@factory.io', phone: '+1-555-0422' },
+      { id: 'usr-4', name: 'Elena Rostova', role: 'Plant Supervisor', email: 'e.rostova@factory.io', phone: '+1-555-0993' }
+    ];
+
+    const INITIAL_LINES = [
+      { id: 'line-1', name: 'Line 1 - Stamping & Press', targetOEE: '88%' },
+      { id: 'line-2', name: 'Line 2 - CNC Milling & Lathe', targetOEE: '92%' },
+      { id: 'line-3', name: 'Line 3 - Packaging & Palletizing', targetOEE: '95%' }
+    ];
+
+    const INITIAL_PLAYBOOKS = [
+      {
+        id: 'pb-1',
+        name: 'Heavy Press Playbook (Vib/Temp)',
+        machineType: 'Hydraulic Press',
+        tempWarn: 75,
+        tempCrit: 85,
+        vibWarn: 4.5,
+        vibCrit: 7.0,
+        runtimeWarn: 450,
+        runtimeCrit: 600,
+        escalationTimeSec: 60, // 60s for snappy interactive demo
+        escalateToRoleId: 'usr-4',
+        steps: {
+          warning: [
+            'Inspect main seal lubrication level',
+            'Take secondary thermal gun reading at rear manifold',
+            'Notify line supervisor if temperature rises +2°C within 15 min'
+          ],
+          critical: [
+            'Immediate: Decelerate stroke cycle to 50% feed rate',
+            'Trigger emergency bearing inspection checklist',
+            'Prepare backup tooling switchover on Standby Press'
+          ]
+        }
+      },
+      {
+        id: 'pb-2',
+        name: 'High-Precision Spindle Playbook',
+        machineType: 'CNC Mill',
+        tempWarn: 68,
+        tempCrit: 80,
+        vibWarn: 3.2,
+        vibCrit: 5.8,
+        runtimeWarn: 300,
+        runtimeCrit: 450,
+        escalationTimeSec: 45,
+        escalateToRoleId: 'usr-4',
+        steps: {
+          warning: [
+            'Verify spindle coolant flow rate is > 4.2 L/min',
+            'Check tool holder runout tolerance (< 0.005mm)',
+            'Schedule vibration spectral test at shift change'
+          ],
+          critical: [
+            'Trigger Controlled Spindle Stop sequence',
+            'Lock out machine before bearing seizure occurs',
+            'Notify Production Manager immediately to divert scheduled parts'
+          ]
+        }
+      },
+      {
+        id: 'pb-3',
+        name: 'Packaging Conveyor & Drive Playbook',
+        machineType: 'Conveyor Drive',
+        tempWarn: 65,
+        tempCrit: 78,
+        vibWarn: 3.8,
+        vibCrit: 6.2,
+        runtimeWarn: 500,
+        runtimeCrit: 700,
+        escalationTimeSec: 60,
+        escalateToRoleId: 'usr-4',
+        steps: {
+          warning: [
+            'Inspect belt tension and alignment sensors',
+            'Grease pillow block bearings (Grade 2 synthetic)',
+            'Check motor gearbox drive temperature'
+          ],
+          critical: [
+            'Stop line conveyor at next batch interval',
+            'Switch to manual offloading transfer bypass',
+            'Call lead technician immediately'
+          ]
+        }
+      }
+    ];
+
+    const INITIAL_MACHINES = [
+      {
+        id: 'm-101',
+        name: 'Komatsu 400T Press (HP-400)',
+        lineId: 'line-1',
+        type: 'Hydraulic Press',
+        playbookId: 'pb-1',
+        primaryOwnerId: 'usr-2',
+        backupOwnerId: 'usr-3',
+        status: 'critical', // ok, warning, critical
+        signals: {
+          temp: 86.4,
+          vib: 7.2,
+          runtimeHours: 512,
+          lastUpdated: '1 min ago'
+        },
+        lastRepair: {
+          id: 'rep-99',
+          date: '2025-02-14',
+          technician: 'Marcus Vance',
+          description: 'Replaced main hydraulic valve pack and flushed particulate filters.',
+          partsUsed: 'Valve Pack Parker D1VW, Filter Cartridge 10-micron'
+        }
+      },
+      {
+        id: 'm-102',
+        name: 'DMG Mori 5-Axis (CNC-02)',
+        lineId: 'line-2',
+        type: 'CNC Mill',
+        playbookId: 'pb-2',
+        primaryOwnerId: 'usr-3',
+        backupOwnerId: 'usr-2',
+        status: 'warning',
+        signals: {
+          temp: 71.0,
+          vib: 3.6,
+          runtimeHours: 320,
+          lastUpdated: 'Just now'
+        },
+        lastRepair: {
+          id: 'rep-98',
+          date: '2025-01-28',
+          technician: 'Dave Ramirez',
+          description: 'Spindle chiller line purged and refilled with high-efficiency coolant.',
+          partsUsed: 'O-ring seals, Castrol Syntilo fluid 20L'
+        }
+      },
+      {
+        id: 'm-103',
+        name: 'Robotic Welder Cell (RW-09)',
+        lineId: 'line-1',
+        type: 'Hydraulic Press',
+        playbookId: 'pb-1',
+        primaryOwnerId: 'usr-2',
+        backupOwnerId: 'usr-3',
+        status: 'ok',
+        signals: {
+          temp: 52.8,
+          vib: 1.4,
+          runtimeHours: 190,
+          lastUpdated: '3 mins ago'
+        },
+        lastRepair: {
+          id: 'rep-97',
+          date: '2025-02-02',
+          technician: 'Marcus Vance',
+          description: 'Routine 250-hour preventative calibration and servo greasing.',
+          partsUsed: 'Mobil SHC Polyrex Grease'
+        }
+      },
+      {
+        id: 'm-104',
+        name: 'High-Speed Sorter Conveyor (CV-10)',
+        lineId: 'line-3',
+        type: 'Conveyor Drive',
+        playbookId: 'pb-3',
+        primaryOwnerId: 'usr-3',
+        backupOwnerId: 'usr-2',
+        status: 'warning',
+        signals: {
+          temp: 67.2,
+          vib: 4.1,
+          runtimeHours: 520,
+          lastUpdated: 'Just now'
+        },
+        lastRepair: {
+          id: 'rep-96',
+          date: '2025-02-10',
+          technician: 'Dave Ramirez',
+          description: 'Motor drive belt re-tensioned and tachometer optical sensor cleaned.',
+          partsUsed: 'Gates Poly-V Belt 580J'
+        }
+      },
+      {
+        id: 'm-105',
+        name: 'Case Packing Cell (CP-04)',
+        lineId: 'line-3',
+        type: 'Conveyor Drive',
+        playbookId: 'pb-3',
+        primaryOwnerId: 'usr-2',
+        backupOwnerId: 'usr-3',
+        status: 'ok',
+        signals: {
+          temp: 48.0,
+          vib: 1.1,
+          runtimeHours: 110,
+          lastUpdated: '4 mins ago'
+        },
+        lastRepair: {
+          id: 'rep-95',
+          date: '2025-01-15',
+          technician: 'Marcus Vance',
+          description: 'Pneumatic cylinder seal replacement on primary carton pusher.',
+          partsUsed: 'SMC Seal Kit CK-CQ2B40'
+        }
+      }
+    ];
+
+    const INITIAL_ALERTS = [
+      {
+        id: 'alt-801',
+        machineId: 'm-101',
+        severity: 'critical',
+        status: 'open', // open, acknowledged, in_progress, escalated, resolved
+        signalType: 'Temperature & Vibration',
+        currentValue: '86.4°C / 7.2 mm/s',
+        thresholdValue: 'Threshold: >85°C / >7.0 mm/s',
+        assignedTo: 'usr-2', // Marcus Vance
+        createdAt: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
+        acknowledgedAt: null,
+        resolvedAt: null,
+        escalatedAt: null,
+        escalatedTo: null,
+        actions: [
+          {
+            id: 'act-1',
+            userId: 'system',
+            userName: 'LinePulse Playbook Engine',
+            actionType: 'created',
+            text: 'Critical early-warning rule triggered. Dispatched immediate SMS & Push to primary owner Marcus Vance.',
+            time: '4 mins ago'
+          }
+        ]
+      },
+      {
+        id: 'alt-802',
+        machineId: 'm-102',
+        severity: 'warning',
+        status: 'acknowledged',
+        signalType: 'Temperature',
+        currentValue: '71.0°C',
+        thresholdValue: 'Warning Threshold: >68°C',
+        assignedTo: 'usr-3', // Dave Ramirez
+        createdAt: new Date(Date.now() - 18 * 60 * 1000).toISOString(),
+        acknowledgedAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
+        resolvedAt: null,
+        escalatedAt: null,
+        escalatedTo: null,
+        actions: [
+          {
+            id: 'act-2',
+            userId: 'system',
+            userName: 'LinePulse Playbook Engine',
+            actionType: 'created',
+            text: 'Temperature warning threshold crossed. Playbook steps assigned.',
+            time: '18 mins ago'
+          },
+          {
+            id: 'act-3',
+            userId: 'usr-3',
+            userName: 'Dave Ramirez',
+            actionType: 'acknowledged',
+            text: 'Checked telemetry. Moving to machine with coolant refractometer.',
+            time: '12 mins ago'
+          }
+        ]
+      },
+      {
+        id: 'alt-803',
+        machineId: 'm-104',
+        severity: 'warning',
+        status: 'open',
+        signalType: 'Vibration & Runtime',
+        currentValue: '4.1 mm/s | 520 hrs',
+        thresholdValue: 'Warning: >3.8 mm/s or >500 hrs',
+        assignedTo: 'usr-3',
+        createdAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+        acknowledgedAt: null,
+        resolvedAt: null,
+        escalatedAt: null,
+        escalatedTo: null,
+        actions: [
+          {
+            id: 'act-4',
+            userId: 'system',
+            userName: 'LinePulse Playbook Engine',
+            actionType: 'created',
+            text: 'Vibration exceeds warning limit. Runtime inspection due.',
+            time: '2 mins ago'
+          }
+        ]
+      }
+    ];
+
+    const INITIAL_REPAIRS = [
+      {
+        id: 'rep-99',
+        machineId: 'm-101',
+        repairDate: '2025-02-14',
+        performedBy: 'usr-2',
+        technicianName: 'Marcus Vance',
+        description: 'Replaced main hydraulic valve pack and flushed particulate filters.',
+        partsUsed: 'Valve Pack Parker D1VW, Filter Cartridge 10-micron'
+      },
+      {
+        id: 'rep-98',
+        machineId: 'm-102',
+        repairDate: '2025-01-28',
+        performedBy: 'usr-3',
+        technicianName: 'Dave Ramirez',
+        description: 'Spindle chiller line purged and refilled with high-efficiency coolant.',
+        partsUsed: 'O-ring seals, Castrol Syntilo fluid 20L'
+      },
+      {
+        id: 'rep-96',
+        machineId: 'm-104',
+        repairDate: '2025-02-10',
+        performedBy: 'usr-3',
+        technicianName: 'Dave Ramirez',
+        description: 'Motor drive belt re-tensioned and tachometer optical sensor cleaned.',
+        partsUsed: 'Gates Poly-V Belt 580J'
+      }
+    ];
+
+    // --- MAIN APPLICATION COMPONENT ---
+    function App() {
+      // Global Data States
+      const [currentUser, setCurrentUser] = useState(INITIAL_USERS[0]); // Sarah Jenkins (Manager)
+      const [machines, setMachines] = useState(INITIAL_MACHINES);
+      const [alerts, setAlerts] = useState(INITIAL_ALERTS);
+      const [playbooks, setPlaybooks] = useState(INITIAL_PLAYBOOKS);
+      const [repairs, setRepairs] = useState(INITIAL_REPAIRS);
+      const [lines] = useState(INITIAL_LINES);
+      const [notifications, setNotifications] = useState([
+        {
+          id: 'notif-1',
+          time: '4 mins ago',
+          recipient: 'Marcus Vance & Sarah Jenkins',
+          title: 'CRITICAL ALERT: Komatsu 400T Press',
+          body: 'Temp (86.4°C) & Vibration (7.2 mm/s) exceeded Playbook limits. Immediate intervention required.',
+          channel: 'Push & Email'
+        }
+      ]);
+
+      // Navigation & Filters
+      const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'playbooks', 'repairs'
+      const [selectedLine, setSelectedLine] = useState('all');
+      const [selectedSeverity, setSelectedSeverity] = useState('all');
+      const [onlyMyAlerts, setOnlyMyAlerts] = useState(false);
+
+      // Modals
+      const [selectedAlertForDetail, setSelectedAlertForDetail] = useState(null);
+      const [selectedMachineForDetail, setSelectedMachineForDetail] = useState(null);
+      const [isManualLogModalOpen, setIsManualLogModalOpen] = useState(false);
+      const [isPlaybookEditorOpen, setIsPlaybookEditorOpen] = useState(false);
+      const [playbookToEdit, setPlaybookToEdit] = useState(null);
+      const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
+      const [alertToResolve, setAlertToResolve] = useState(null);
+      const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
+      const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState(false);
+
+      // Simulator loop toggle
+      const [simulatorRunning, setSimulatorRunning] = useState(true);
+
+      // Add a simulated toast notification helper
+      const dispatchNotification = (title, body, recipientName, channel = 'Email & Push') => {
+        const newNotif = {
+          id: 'notif-' + Date.now(),
+          time: 'Just now',
+          recipient: recipientName,
+          title,
+          body,
+          channel
+        };
+        setNotifications(prev => [newNotif, ...prev]);
+      };
+
+      // Rules Engine: Evaluates a signal against the machine's playbook
+      const evaluateMachineRules = (machineId, newSignals) => {
+        const machine = machines.find(m => m.id === machineId);
+        if (!machine) return;
+        const playbook = playbooks.find(p => p.id === machine.playbookId);
+        if (!playbook) return;
+
+        let newStatus = 'ok';
+        let severity = null;
+        let signalDesc = [];
+
+        // Check Temperature
+        if (newSignals.temp >= playbook.tempCrit) {
+          newStatus = 'critical';
+          severity = 'critical';
+          signalDesc.push(`Temp ${newSignals.temp}°C (Crit > ${playbook.tempCrit}°C)`);
+        } else if (newSignals.temp >= playbook.tempWarn) {
+          if (newStatus !== 'critical') newStatus = 'warning';
+          if (!severity) severity = 'warning';
+          signalDesc.push(`Temp ${newSignals.temp}°C (Warn > ${playbook.tempWarn}°C)`);
+        }
+
+        // Check Vibration
+        if (newSignals.vib >= playbook.vibCrit) {
+          newStatus = 'critical';
+          severity = 'critical';
+          signalDesc.push(`Vibration ${newSignals.vib} mm/s (Crit > ${playbook.vibCrit})`);
+        } else if (newSignals.vib >= playbook.vibWarn) {
+          if (newStatus !== 'critical') newStatus = 'warning';
+          if (!severity) severity = 'warning';
+          signalDesc.push(`Vibration ${newSignals.vib} mm/s (Warn > ${playbook.vibWarn})`);
+        }
+
+        // Update Machine Status & live readings
+        setMachines(prev => prev.map(m => {
+          if (m.id === machineId) {
+            return {
+              ...m,
+              status: newStatus,
+              signals: {
+                ...m.signals,
+                ...newSignals,
+                lastUpdated: 'Just now'
+              }
+            };
+          }
+          return m;
+        }));
+
+        // If threshold breached, create or upgrade Alert
+        if (severity) {
+          setAlerts(prev => {
+            const existingAlert = prev.find(a => a.machineId === machineId && a.status !== 'resolved');
+            if (existingAlert) {
+              // Update existing
+              return prev.map(a => {
+                if (a.id === existingAlert.id) {
+                  return {
+                    ...a,
+                    severity: (severity === 'critical' || a.severity === 'critical') ? 'critical' : 'warning',
+                    currentValue: signalDesc.join(' | '),
+                    actions: [
+                      ...a.actions,
+                      {
+                        id: 'act-' + Date.now(),
+                        userId: 'system',
+                        userName: 'Playbook Engine',
+                        actionType: 'reading_update',
+                        text: `Updated readings: ${signalDesc.join(', ')}`,
+                        time: 'Just now'
+                      }
+                    ]
+                  };
+                }
+                return a;
+              });
+            } else {
+              // Create new alert
+              const primaryUser = INITIAL_USERS.find(u => u.id === machine.primaryOwnerId);
+              const newAlertId = 'alt-' + Math.floor(100 + Math.random() * 900);
+              const newAlert = {
+                id: newAlertId,
+                machineId: machine.id,
+                severity: severity,
+                status: 'open',
+                signalType: signalDesc[0]?.split(' ')[0] || 'Telemetry',
+                currentValue: signalDesc.join(' | '),
+                thresholdValue: `Playbook: ${playbook.name}`,
+                assignedTo: machine.primaryOwnerId,
+                createdAt: new Date().toISOString(),
+                acknowledgedAt: null,
+                resolvedAt: null,
+                escalatedAt: null,
+                escalatedTo: null,
+                actions: [
+                  {
+                    id: 'act-' + Date.now(),
+                    userId: 'system',
+                    userName: 'LinePulse Playbook Engine',
+                    actionType: 'created',
+                    text: `Alert automatically generated by Early-Warning Playbook rules. Assigned to ${primaryUser?.name || 'Technician'}.`,
+                    time: 'Just now'
+                  }
+                ]
+              };
+
+              // Send Notification
+              dispatchNotification(
+                `${severity.toUpperCase()} ALERT: ${machine.name}`,
+                `Condition breached: ${signalDesc.join(' | ')}. Assigned to ${primaryUser?.name}. First playbook step recommended.`,
+                `${primaryUser?.name} & Plant Lead`
+              );
+
+              return [newAlert, ...prev];
+            }
+          });
+        }
+      };
+
+      // Periodic Background Simulator (mocking telemetry stream)
+      useEffect(() => {
+        if (!simulatorRunning) return;
+
+        const interval = setInterval(() => {
+          // Pick a random machine to jitter
+          const randomIdx = Math.floor(Math.random() * machines.length);
+          const targetMachine = machines[randomIdx];
+          if (!targetMachine) return;
+
+          // Subtle random walk
+          const tempDelta = (Math.random() - 0.48) * 1.5;
+          const vibDelta = (Math.random() - 0.48) * 0.2;
+          
+          const newTemp = parseFloat(Math.max(35, Math.min(105, targetMachine.signals.temp + tempDelta)).toFixed(1));
+          const newVib = parseFloat(Math.max(0.5, Math.min(10.0, targetMachine.signals.vib + vibDelta)).toFixed(2));
+
+          evaluateMachineRules(targetMachine.id, {
+            temp: newTemp,
+            vib: newVib
+          });
+        }, 5000);
+
+        return () => clearInterval(interval);
+      }, [simulatorRunning, machines, playbooks]);
+
+      // Auto-escalation check ticker (simulates backend scheduler every 6s)
+      useEffect(() => {
+        const escalationInterval = setInterval(() => {
+          setAlerts(prevAlerts => {
+            return prevAlerts.map(alert => {
+              if ((alert.status === 'open' || alert.status === 'acknowledged') && !alert.escalatedAt) {
+                const machine = machines.find(m => m.id === alert.machineId);
+                const playbook = machine ? playbooks.find(p => p.id === machine.playbookId) : null;
+                const escalationTimeout = (playbook?.escalationTimeSec || 60) * 1000;
+                
+                const timeElapsed = Date.now() - new Date(alert.createdAt).getTime();
+
+                // If time elapsed exceeds playbook threshold and not yet escalated
+                if (timeElapsed >= escalationTimeout) {
+                  const supervisor = INITIAL_USERS.find(u => u.id === (playbook?.escalateToRoleId || 'usr-4'));
+                  
+                  dispatchNotification(
+                    `ESCALATION WARNING: Alert #${alert.id} Unresolved`,
+                    `Machine ${machine?.name} has exceeded the ${playbook?.escalationTimeSec}s response window. Escalated to ${supervisor?.name}.`,
+                    supervisor?.name || 'Plant Supervisor',
+                    'High-Priority SMS & Web Push'
+                  );
+
+                  return {
+                    ...alert,
+                    status: 'escalated',
+                    escalatedAt: new Date().toISOString(),
+                    escalatedTo: supervisor?.id || 'usr-4',
+                    actions: [
+                      ...alert.actions,
+                      {
+                        id: 'act-' + Date.now(),
+                        userId: 'system',
+                        userName: 'LinePulse Escalation Engine',
+                        actionType: 'escalated',
+                        text: `Time-based escalation triggered (> ${playbook?.escalationTimeSec}s). Escalated to ${supervisor?.name} (${supervisor?.role}).`,
+                        time: 'Just now'
+                      }
+                    ]
+                  };
+                }
+              }
+              return alert;
+            });
+          });
+        }, 6000);
+
+        return () => clearInterval(escalationInterval);
+      }, [machines, playbooks]);
+
+      // Filtered Alerts
+      const activeAlerts = useMemo(() => {
+        return alerts.filter(a => a.status !== 'resolved');
+      }, [alerts]);
+
+      const filteredAlerts = useMemo(() => {
+        return activeAlerts.filter(alert => {
+          const machine = machines.find(m => m.id === alert.machineId);
+          if (selectedLine !== 'all' && machine?.lineId !== selectedLine) return false;
+          if (selectedSeverity !== 'all' && alert.severity !== selectedSeverity) return false;
+          if (onlyMyAlerts && alert.assignedTo !== currentUser.id) return false;
+          return true;
+        });
+      }, [activeAlerts, machines, selectedLine, selectedSeverity, onlyMyAlerts, currentUser]);
+
+      // Filtered Machines
+      const filteredMachines = useMemo(() => {
+        return machines.filter(m => {
+          if (selectedLine !== 'all' && m.lineId !== selectedLine) return false;
+          if (selectedSeverity !== 'all' && m.status !== selectedSeverity) return false;
+          return true;
+        });
+      }, [machines, selectedLine, selectedSeverity]);
+
+      // Metrics Summary
+      const criticalCount = activeAlerts.filter(a => a.severity === 'critical').length;
+      const warningCount = activeAlerts.filter(a => a.severity === 'warning').length;
+      const escalatedCount = activeAlerts.filter(a => a.status === 'escalated').length;
+
+      // Status change handler
+      const handleAlertStatusChange = (alertId, newStatus, comment = '') => {
+        setAlerts(prev => prev.map(a => {
+          if (a.id === alertId) {
+            const updated = {
+              ...a,
+              status: newStatus,
+              actions: [
+                ...a.actions,
+                {
+                  id: 'act-' + Date.now(),
+                  userId: currentUser.id,
+                  userName: currentUser.name,
+                  actionType: newStatus,
+                  text: comment || `Status updated to ${newStatus.toUpperCase()}`,
+                  time: 'Just now'
+                }
+              ]
+            };
+            if (newStatus === 'acknowledged' && !a.acknowledgedAt) {
+              updated.acknowledgedAt = new Date().toISOString();
+            }
+            if (newStatus === 'resolved') {
+              updated.resolvedAt = new Date().toISOString();
+            }
+            return updated;
+          }
+          return a;
+        }));
+
+        // If resolving, also set machine status back to OK if no other active alerts for it
+        if (newStatus === 'resolved') {
+          const alert = alerts.find(a => a.id === alertId);
+          if (alert) {
+            const otherAlerts = alerts.filter(a => a.machineId === alert.machineId && a.id !== alertId && a.status !== 'resolved');
+            if (otherAlerts.length === 0) {
+              setMachines(prev => prev.map(m => m.id === alert.machineId ? { ...m, status: 'ok' } : m));
+            }
+          }
+        }
+      };
+
+      // Handler for Reassignment
+      const handleReassignAlert = (alertId, newUserId, reason) => {
+        const newUser = INITIAL_USERS.find(u => u.id === newUserId);
+        setAlerts(prev => prev.map(a => {
+          if (a.id === alertId) {
+            return {
+              ...a,
+              assignedTo: newUserId,
+              actions: [
+                ...a.actions,
+                {
+                  id: 'act-' + Date.now(),
+                  userId: currentUser.id,
+                  userName: currentUser.name,
+                  actionType: 'reassigned',
+                  text: `Reassigned to ${newUser?.name || 'Engineer'}. Reason: ${reason}`,
+                  time: 'Just now'
+                }
+              ]
+            };
+          }
+          return a;
+        }));
+        dispatchNotification(
+          `Alert Reassigned: #${alertId}`,
+          `Assigned to ${newUser?.name}. Note: ${reason}`,
+          newUser?.name || 'Technician'
+        );
+      };
+
+      // Manual Signal Submission
+      const handleManualSignalSubmit = (machineId, signalType, val, note) => {
+        const machine = machines.find(m => m.id === machineId);
+        if (!machine) return;
+
+        const numVal = parseFloat(val);
+        const updatePayload = {};
+
+        if (signalType === 'temp') updatePayload.temp = numVal;
+        if (signalType === 'vib') updatePayload.vib = numVal;
+        if (signalType === 'runtime') updatePayload.runtimeHours = numVal;
+
+        evaluateMachineRules(machineId, updatePayload);
+
+        // Add action note if supplied
+        if (note) {
+          dispatchNotification(
+            `Manual Operator Log: ${machine.name}`,
+            `Reading entered: ${signalType.toUpperCase()} = ${val}. Note: "${note}"`,
+            'Assigned Engineers'
+          );
+        }
+
+        setIsManualLogModalOpen(false);
+      };
+
+      // Fast-forward manual test trigger for demoing
+      const triggerSimulatedSpike = (machineId, type = 'critical') => {
+        if (type === 'critical') {
+          evaluateMachineRules(machineId, { temp: 89.2, vib: 7.8 });
+        } else {
+          evaluateMachineRules(machineId, { temp: 74.0, vib: 4.8 });
+        }
+      };
+
+      return (
+        <div className="flex flex-col min-h-screen">
+          {/* TOP NAV BAR */}
+          <header className="border-b border-slate-800 bg-slate-950/90 backdrop-blur sticky top-0 z-40 px-4 lg:px-8 py-3">
+            <div className="flex items-center justify-between">
+              {/* Brand Logo & Tagline */}
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                  <span className="text-xl font-black tracking-tight text-white">LP</span>
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h1 className="text-lg font-bold tracking-tight text-white">LinePulse</h1>
+                    <span className="text-xs px-2 py-0.5 rounded font-mono uppercase bg-blue-950 border border-blue-700/50 text-blue-300">
+                      Control Hub
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">Early-Warning Machine Health & Operational Playbooks</p>
+                </div>
+              </div>
+
+              {/* Navigation Tabs */}
+              <div className="hidden md:flex items-center bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs font-medium">
+                <button
+                  onClick={() => setActiveTab('dashboard')}
+                  className={`px-4 py-2 rounded-lg transition-all ${
+                    activeTab === 'dashboard'
+                      ? 'bg-blue-600 text-white shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Unified Dashboard
+                </button>
+                <button
+                  onClick={() => setActiveTab('playbooks')}
+                  className={`px-4 py-2 rounded-lg transition-all ${
+                    activeTab === 'playbooks'
+                      ? 'bg-blue-600 text-white shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Health Playbooks ({playbooks.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('repairs')}
+                  className={`px-4 py-2 rounded-lg transition-all ${
+                    activeTab === 'repairs'
+                      ? 'bg-blue-600 text-white shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Repair Records ({repairs.length})
+                </button>
+              </div>
+
+              {/* Quick Actions & User Persona Switcher */}
+              <div className="flex items-center space-x-3">
+                {/* Simulator Live Toggle */}
+                <button
+                  onClick={() => setSimulatorRunning(!simulatorRunning)}
+                  title="Toggle background IoT simulation"
+                  className={`hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-xs font-mono transition-colors ${
+                    simulatorRunning
+                      ? 'border-emerald-600/60 bg-emerald-950/40 text-emerald-300'
+                      : 'border-slate-700 bg-slate-800 text-slate-400'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${simulatorRunning ? 'bg-emerald-400 animate-ping' : 'bg-slate-500'}`} />
+                  <span>{simulatorRunning ? 'IoT Stream LIVE' : 'IoT PAUSED'}</span>
+                </button>
+
+                {/* Manual Log Button */}
+                <button
+                  onClick={() => setIsManualLogModalOpen(true)}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 transition-colors shadow-sm"
+                >
+                  <span>+ Manual Log</span>
+                </button>
+
+                {/* Notifications Bell */}
+                <button
+                  onClick={() => setIsNotificationDrawerOpen(!isNotificationDrawerOpen)}
+                  className="relative p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                  title="Notifications & Dispatches"
+                >
+                  <IconBell />
+                  {notifications.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+                      {notifications.length}
+                    </span>
+                  )}
+                </button>
+
+                {/* Persona Switcher (Production Manager vs Maintenance Tech) */}
+                <div className="flex items-center pl-2 border-l border-slate-800">
+                  <div className="text-right mr-2 hidden lg:block">
+                    <p className="text-xs font-bold text-slate-200 leading-none">{currentUser.name}</p>
+                    <p className="text-[10px] text-blue-400 font-mono mt-0.5">{currentUser.role}</p>
+                  </div>
+                  <select
+                    value={currentUser.id}
+                    onChange={(e) => {
+                      const u = INITIAL_USERS.find(usr => usr.id === e.target.value);
+                      if (u) setCurrentUser(u);
+                    }}
+                    className="bg-slate-800 text-xs text-slate-300 border border-slate-700 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  >
+                    {INITIAL_USERS.map(user => (
+                      <option key={user.id} value={user.id}>
+                        {user.name} ({user.role.split(' ')[0]})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          {/* MAIN WORKSPACE CONTENT */}
+          <main className="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full">
+            
+            {/* VIEW 1: UNIFIED DASHBOARD */}
+            {activeTab === 'dashboard' && (
+              <div className="space-y-6">
+                
+                {/* 1. TOP METRICS / HEALTH SUMMARY */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* Critical Machines */}
+                  <div className="p-4 rounded-xl bg-slate-950/80 border border-red-900/40 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 h-1 w-full bg-red-500" />
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs uppercase font-mono tracking-wider text-slate-400">Critical Risks</p>
+                        <h3 className="text-3xl font-black text-red-400 mt-1">{criticalCount}</h3>
+                      </div>
+                      <span className="p-2 rounded-lg bg-red-950/80 text-red-400 border border-red-800/40">
+                        <IconAlertTriangle />
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-red-300/80 mt-2 flex items-center">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 mr-1.5 animate-pulse" />
+                      Immediate target risk
+                    </p>
+                  </div>
+
+                  {/* Warning Machines */}
+                  <div className="p-4 rounded-xl bg-slate-950/80 border border-amber-900/40 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 h-1 w-full bg-amber-500" />
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs uppercase font-mono tracking-wider text-slate-400">Early Warnings</p>
+                        <h3 className="text-3xl font-black text-amber-400 mt-1">{warningCount}</h3>
+                      </div>
+                      <span className="p-2 rounded-lg bg-amber-950/80 text-amber-400 border border-amber-800/40">
+                        <IconFlame />
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-amber-300/80 mt-2">Thresholds crossed; action pending</p>
+                  </div>
+
+                  {/* Escalated Alerts */}
+                  <div className="p-4 rounded-xl bg-slate-950/80 border border-purple-900/40 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 h-1 w-full bg-purple-500" />
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs uppercase font-mono tracking-wider text-slate-400">Escalated</p>
+                        <h3 className="text-3xl font-black text-purple-400 mt-1">{escalatedCount}</h3>
+                      </div>
+                      <span className="p-2 rounded-lg bg-purple-950/80 text-purple-400 border border-purple-800/40">
+                        <IconClock />
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-purple-300/80 mt-2">Over SLA response time</p>
+                  </div>
+
+                  {/* Monitored Machines */}
+                  <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 h-1 w-full bg-blue-500" />
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs uppercase font-mono tracking-wider text-slate-400">Machines Online</p>
+                        <h3 className="text-3xl font-black text-slate-100 mt-1">{machines.length}</h3>
+                      </div>
+                      <span className="p-2 rounded-lg bg-slate-900 text-blue-400 border border-slate-800">
+                        <IconCheckCircle />
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-2">100% covered by playbooks</p>
+                  </div>
+                </div>
+
+                {/* 2. FILTER & OPERATIONAL CONTROL BAR */}
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-wrap gap-4 items-center justify-between">
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Line Filter */}
+                    <div className="flex items-center space-x-2 text-xs">
+                      <span className="text-slate-400 font-medium">Line:</span>
+                      <select
+                        value={selectedLine}
+                        onChange={(e) => setSelectedLine(e.target.value)}
+                        className="bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="all">All Lines (3)</option>
+                        {lines.map(l => (
+                          <option key={l.id} value={l.id}>{l.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Severity Filter */}
+                    <div className="flex items-center space-x-2 text-xs">
+                      <span className="text-slate-400 font-medium">Health State:</span>
+                      <select
+                        value={selectedSeverity}
+                        onChange={(e) => setSelectedSeverity(e.target.value)}
+                        className="bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="all">All Health States</option>
+                        <option value="critical">Critical Only</option>
+                        <option value="warning">Warning Only</option>
+                        <option value="ok">Healthy (OK)</option>
+                      </select>
+                    </div>
+
+                    {/* Assigned to Me Filter */}
+                    <label className="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer bg-slate-900 border border-slate-700/80 px-3 py-1.5 rounded-lg select-none hover:bg-slate-800">
+                      <input
+                        type="checkbox"
+                        checked={onlyMyAlerts}
+                        onChange={(e) => setOnlyMyAlerts(e.target.checked)}
+                        className="rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span>Only My Assigned Alerts</span>
+                    </label>
+                  </div>
+
+                  {/* Fast demo injector controls */}
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[11px] text-slate-500 uppercase font-mono hidden sm:inline">Demo Scenarios:</span>
+                    <button
+                      onClick={() => triggerSimulatedSpike('m-103', 'warning')}
+                      className="text-xs px-2.5 py-1 rounded bg-amber-950/60 border border-amber-800/60 text-amber-300 hover:bg-amber-900/70"
+                      title="Inject high vibration into Robotic Welder"
+                    >
+                      + Warn RW-09
+                    </button>
+                    <button
+                      onClick={() => triggerSimulatedSpike('m-102', 'critical')}
+                      className="text-xs px-2.5 py-1 rounded bg-red-950/60 border border-red-800/60 text-red-300 hover:bg-red-900/70"
+                      title="Inject temperature spike into CNC-02"
+                    >
+                      + Spike CNC-02
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. TWO-COLUMN OPERATIONAL LAYOUT: ACTIVE ALERTS & MACHINE HEALTH CARDS */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  
+                  {/* LEFT: ACTIVE ALERTS & WORKFLOW STREAM (5 Cols) */}
+                  <div className="lg:col-span-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Active Alert Stream</h2>
+                        <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-mono">
+                          {filteredAlerts.length}
+                        </span>
+                      </div>
+                      <span className="text-xs text-slate-500 font-mono">Real-Time Queue</span>
+                    </div>
+
+                    {filteredAlerts.length === 0 ? (
+                      <div className="p-8 rounded-xl bg-slate-950/60 border border-slate-800 text-center">
+                        <div className="inline-flex p-3 rounded-full bg-emerald-950/40 text-emerald-400 mb-2">
+                          <IconCheckCircle />
+                        </div>
+                        <p className="text-sm font-semibold text-slate-300">No active alerts matching filter</p>
+                        <p className="text-xs text-slate-500 mt-1">All monitored machines are operating within calibrated playbook margins.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {filteredAlerts.map(alert => {
+                          const machine = machines.find(m => m.id === alert.machineId);
+                          const assignedUser = INITIAL_USERS.find(u => u.id === alert.assignedTo);
+                          const playbook = machine ? playbooks.find(p => p.id === machine.playbookId) : null;
+                          const isCritical = alert.severity === 'critical';
+                          const isEscalated = alert.status === 'escalated';
+
+                          return (
+                            <div
+                              key={alert.id}
+                              className={`p-4 rounded-xl border transition-all cursor-pointer relative overflow-hidden ${
+                                isCritical
+                                  ? 'bg-red-950/20 border-red-800/60 hover:border-red-600 shadow-lg shadow-red-950/20'
+                                  : 'bg-amber-950/20 border-amber-800/60 hover:border-amber-600 shadow-lg shadow-amber-950/20'
+                              }`}
+                              onClick={() => setSelectedAlertForDetail(alert)}
+                            >
+                              {/* Left status accent strip */}
+                              <div
+                                className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                                  isCritical ? 'bg-red-500' : 'bg-amber-500'
+                                }`}
+                              />
+
+                              {/* Alert Header */}
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <div className="flex items-center space-x-2">
+                                    <span
+                                      className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider ${
+                                        isCritical
+                                          ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+                                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                      }`}
+                                    >
+                                      {alert.severity}
+                                    </span>
+                                    {isEscalated && (
+                                      <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold uppercase bg-purple-900/60 text-purple-200 border border-purple-500/60 animate-pulse">
+                                        Escalated
+                                      </span>
+                                    )}
+                                    <span className="text-xs text-slate-400 font-mono">#{alert.id}</span>
+                                  </div>
+                                  <h3 className="text-sm font-bold text-slate-100 mt-1">{machine?.name}</h3>
+                                </div>
+
+                                <div className="text-right">
+                                  <span className="text-xs px-2 py-1 rounded bg-slate-900 border border-slate-800 font-mono text-slate-300 capitalize">
+                                    {alert.status.replace('_', ' ')}
+                                  </span>
+                                  <p className="text-[10px] text-slate-500 mt-1 font-mono">
+                                    {new Date(alert.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Triggered Telemetry & Threshold */}
+                              <div className="mt-2 text-xs bg-slate-900/70 p-2 rounded-lg border border-slate-800 font-mono">
+                                <span className="text-slate-400">Current: </span>
+                                <span className={`font-bold ${isCritical ? 'text-red-400' : 'text-amber-400'}`}>
+                                  {alert.currentValue}
+                                </span>
+                              </div>
+
+                              {/* Assigned Owner & First Playbook Step */}
+                              <div className="mt-3 flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs">
+                                <div className="flex items-center space-x-1.5 text-slate-300">
+                                  <span className="text-slate-500">Owner:</span>
+                                  <span className="font-semibold text-blue-300">{assignedUser?.name}</span>
+                                </div>
+                                <span className="text-[11px] text-blue-400 hover:underline font-medium">
+                                  View Playbook Steps &rarr;
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* RIGHT: MACHINES HEALTH & RISK GRID (7 Cols) */}
+                  <div className="lg:col-span-7 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Monitored Equipment</h2>
+                        <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-mono">
+                          {filteredMachines.length}
+                        </span>
+                      </div>
+                      <span className="text-xs text-slate-400">Surfacing Last Repair & Health</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {filteredMachines.map(machine => {
+                        const line = lines.find(l => l.id === machine.lineId);
+                        const primaryOwner = INITIAL_USERS.find(u => u.id === machine.primaryOwnerId);
+                        const backupOwner = INITIAL_USERS.find(u => u.id === machine.backupOwnerId);
+                        const playbook = playbooks.find(p => p.id === machine.playbookId);
+
+                        const isCrit = machine.status === 'critical';
+                        const isWarn = machine.status === 'warning';
+                        const isOk = machine.status === 'ok';
+
+                        return (
+                          <div
+                            key={machine.id}
+                            className={`p-4 rounded-xl bg-slate-950 border transition-all hover:border-slate-600 flex flex-col justify-between ${
+                              isCrit ? 'border-red-900/60' : isWarn ? 'border-amber-900/60' : 'border-slate-800'
+                            }`}
+                          >
+                            <div>
+                              {/* Machine Top Bar */}
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
+                                    {line?.name.split('-')[0]}
+                                  </span>
+                                  <h3 className="text-sm font-bold text-slate-100">{machine.name}</h3>
+                                  <p className="text-xs text-slate-400">{machine.type}</p>
+                                </div>
+                                <span
+                                  className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider ${
+                                    isCrit
+                                      ? 'bg-red-500/20 text-red-300 border border-red-500/50'
+                                      : isWarn
+                                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
+                                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50'
+                                  }`}
+                                >
+                                  {machine.status}
+                                </span>
+                              </div>
+
+                              {/* Real-Time Sensor Snapshot */}
+                              <div className="mt-3 grid grid-cols-3 gap-2 bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 text-center font-mono">
+                                <div>
+                                  <div className="flex items-center justify-center text-slate-400 text-[10px] space-x-1">
+                                    <IconFlame />
+                                    <span>Temp</span>
+                                  </div>
+                                  <p className={`text-xs font-bold mt-0.5 ${machine.signals.temp > (playbook?.tempCrit || 85) ? 'text-red-400' : machine.signals.temp > (playbook?.tempWarn || 75) ? 'text-amber-400' : 'text-slate-200'}`}>
+                                    {machine.signals.temp}°C
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <div className="flex items-center justify-center text-slate-400 text-[10px] space-x-1">
+                                    <IconVibration />
+                                    <span>Vib</span>
+                                  </div>
+                                  <p className={`text-xs font-bold mt-0.5 ${machine.signals.vib > (playbook?.vibCrit || 6.5) ? 'text-red-400' : machine.signals.vib > (playbook?.vibWarn || 4.0) ? 'text-amber-400' : 'text-slate-200'}`}>
+                                    {machine.signals.vib} <span className="text-[9px]">mm/s</span>
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <div className="flex items-center justify-center text-slate-400 text-[10px] space-x-1">
+                                    <IconClock />
+                                    <span>Runtime</span>
+                                  </div>
+                                  <p className="text-xs font-bold text-slate-200 mt-0.5">
+                                    {machine.signals.runtimeHours}h
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* KEY FEATURE: LAST REPAIR INFORMATION (PRD Requirement 7) */}
+                              <div className="mt-3 p-2.5 rounded-lg bg-slate-900/50 border border-slate-800 text-xs">
+                                <div className="flex items-center justify-between text-slate-400 text-[11px] mb-1">
+                                  <span className="font-semibold flex items-center text-slate-300">
+                                    <span className="mr-1"><IconWrench /></span> Last Repair:
+                                  </span>
+                                  <span className="font-mono">{machine.lastRepair?.date || 'N/A'}</span>
+                                </div>
+                                <p className="text-slate-300 text-[11px] line-clamp-2 italic">
+                                  "{machine.lastRepair?.description || 'No prior repairs logged'}"
+                                </p>
+                                {machine.lastRepair?.partsUsed && (
+                                  <p className="text-[10px] text-slate-400 font-mono mt-1">
+                                    <span className="text-slate-400">Parts:</span> {machine.lastRepair.partsUsed}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Machine Footer: Ownership & Details Link */}
+                            <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
+                              <div>
+                                <p className="text-[10px] text-slate-500 leading-none">Primary Owner</p>
+                                <p className="text-xs font-semibold text-slate-200 mt-0.5">{primaryOwner?.name}</p>
+                              </div>
+                              <button
+                                onClick={() => setSelectedMachineForDetail(machine)}
+                                className="px-3 py-1.5 rounded bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 font-medium transition-colors"
+                              >
+                                View Deep Dive
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* VIEW 2: PLAYBOOK MANAGEMENT (PRD Requirement 1) */}
+            {activeTab === 'playbooks' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-100">Configurable Early-Warning Playbooks</h2>
+                    <p className="text-xs text-slate-400">
+                      Standardize operational thresholds, required responses, and automatic escalation timelines.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setPlaybookToEdit({
+                        id: 'pb-' + (playbooks.length + 1),
+                        name: 'New Custom Asset Playbook',
+                        machineType: 'Universal Rotary',
+                        tempWarn: 70,
+                        tempCrit: 85,
+                        vibWarn: 3.5,
+                        vibCrit: 6.0,
+                        runtimeWarn: 400,
+                        runtimeCrit: 600,
+                        escalationTimeSec: 60,
+                        escalateToRoleId: 'usr-4',
+                        steps: {
+                          warning: ['Perform manual acoustic test', 'Check bearing grease'],
+                          critical: ['Halt line', 'Notify supervisor']
+                        }
+                      });
+                      setIsPlaybookEditorOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-md"
+                  >
+                    + Create New Playbook
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {playbooks.map(pb => {
+                    const supervisor = INITIAL_USERS.find(u => u.id === pb.escalateToRoleId);
+                    const associatedMachines = machines.filter(m => m.playbookId === pb.id);
+
+                    return (
+                      <div key={pb.id} className="p-5 rounded-xl bg-slate-950 border border-slate-800 flex flex-col justify-between">
+                        <div>
+                          <div className="flex justify-between items-start">
+                            <span className="text-xs font-mono uppercase bg-blue-950 text-blue-300 border border-blue-800 px-2 py-0.5 rounded">
+                              {pb.machineType}
+                            </span>
+                            <span className="text-xs font-mono text-slate-400">
+                              {associatedMachines.length} Machine(s) Assigned
+                            </span>
+                          </div>
+                          <h3 className="text-base font-bold text-slate-100 mt-2">{pb.name}</h3>
+
+                          {/* Thresholds Table */}
+                          <div className="mt-4 space-y-2 bg-slate-900/60 p-3 rounded-lg border border-slate-800 text-xs font-mono">
+                            <div className="flex justify-between text-slate-400 border-b border-slate-800 pb-1">
+                              <span>Signal</span>
+                              <span className="text-amber-400">Warning</span>
+                              <span className="text-red-400">Critical</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-300">Temperature</span>
+                              <span className="text-amber-400 font-bold">&gt; {pb.tempWarn}°C</span>
+                              <span className="text-red-400 font-bold">&gt; {pb.tempCrit}°C</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-300">Vibration (RMS)</span>
+                              <span className="text-amber-400 font-bold">&gt; {pb.vibWarn} mm/s</span>
+                              <span className="text-red-400 font-bold">&gt; {pb.vibCrit} mm/s</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-300">Service Runtime</span>
+                              <span className="text-amber-400 font-bold">&gt; {pb.runtimeWarn} hrs</span>
+                              <span className="text-red-400 font-bold">&gt; {pb.runtimeCrit} hrs</span>
+                            </div>
+                          </div>
+
+                          {/* Response Procedures Preview */}
+                          <div className="mt-4 space-y-2 text-xs">
+                            <p className="font-semibold text-slate-300 flex items-center">
+                              <span className="mr-1 text-blue-400"><IconBookOpen /></span>
+                              Critical Response Steps:
+                            </p>
+                            <ul className="list-disc list-inside text-slate-400 space-y-1 pl-1">
+                              {pb.steps.critical.slice(0, 2).map((s, idx) => (
+                                <li key={idx} className="line-clamp-1">{s}</li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          {/* Escalation Rules */}
+                          <div className="mt-4 p-2.5 rounded bg-slate-900 border border-slate-800 text-xs flex justify-between items-center font-mono">
+                            <div>
+                              <span className="text-slate-400 text-[10px] block">Auto-Escalation SLA</span>
+                              <span className="text-purple-300 font-bold">{pb.escalationTimeSec} Seconds</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-slate-400 text-[10px] block">Escalate To</span>
+                              <span className="text-slate-200">{supervisor?.name}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-5 pt-3 border-t border-slate-800 flex justify-end">
+                          <button
+                            onClick={() => {
+                              setPlaybookToEdit(pb);
+                              setIsPlaybookEditorOpen(true);
+                            }}
+                            className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition-colors"
+                          >
+                            Edit Playbook Rules
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* VIEW 3: REPAIRS & MACHINE HISTORICAL LEDGER (PRD Requirement 7) */}
+            {activeTab === 'repairs' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-100">Last Repair Information & Audit Log</h2>
+                    <p className="text-xs text-slate-400">
+                      Surfaces historical repair context so engineers troubleshoot faster and managers commit targets with confidence.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 font-mono uppercase text-[10px]">
+                      <tr>
+                        <th className="p-4">Repair Date</th>
+                        <th className="p-4">Machine</th>
+                        <th className="p-4">Lead Technician</th>
+                        <th className="p-4">Issue Description & Action Taken</th>
+                        <th className="p-4">Parts Replaced</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 text-slate-300">
+                      {repairs.map(rep => {
+                        const machine = machines.find(m => m.id === rep.machineId);
+                        return (
+                          <tr key={rep.id} className="hover:bg-slate-900/40">
+                            <td className="p-4 font-mono text-slate-400">{rep.repairDate}</td>
+                            <td className="p-4 font-semibold text-slate-100">
+                              {machine?.name || 'Machine ' + rep.machineId}
+                              <span className="block text-[10px] text-slate-400 font-mono font-normal">
+                                {machine?.type}
+                              </span>
+                            </td>
+                            <td className="p-4 font-medium text-blue-300">{rep.technicianName}</td>
+                            <td className="p-4 max-w-md">{rep.description}</td>
+                            <td className="p-4 font-mono text-slate-400">{rep.partsUsed || 'None (Calibration Only)'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </main>
+
+          {/* ======================================================== */}
+          {/* MODAL 1: ALERT WORKFLOW & DETAIL MODAL (Requirement 4, 6) */}
+          {/* ======================================================== */}
+          {selectedAlertForDetail && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+                
+                {/* Modal Header */}
+                <div className={`p-5 border-b flex justify-between items-start ${
+                  selectedAlertForDetail.severity === 'critical'
+                    ? 'bg-red-950/40 border-red-900/60'
+                    : 'bg-amber-950/40 border-amber-900/60'
+                }`}>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className={`text-[10px] font-mono font-bold uppercase px-2.5 py-0.5 rounded ${
+                        selectedAlertForDetail.severity === 'critical'
+                          ? 'bg-red-500 text-white'
+                          : 'bg-amber-500 text-slate-900'
+                      }`}>
+                        {selectedAlertForDetail.severity}
+                      </span>
+                      <span className="text-xs font-mono text-slate-300">Alert #{selectedAlertForDetail.id}</span>
+                      <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-900 text-slate-300 uppercase">
+                        Status: {selectedAlertForDetail.status}
+                      </span>
+                    </div>
+                    <h2 className="text-lg font-bold text-white mt-1">
+                      {machines.find(m => m.id === selectedAlertForDetail.machineId)?.name}
+                    </h2>
+                  </div>
+                  <button
+                    onClick={() => setSelectedAlertForDetail(null)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Modal Body */}
+                <div className="p-6 space-y-5 overflow-y-auto flex-1">
+                  
+                  {/* Current Breached Signal vs Threshold */}
+                  <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 grid grid-cols-2 gap-4 text-xs font-mono">
+                    <div>
+                      <p className="text-slate-400">Triggered Value:</p>
+                      <p className="text-sm font-bold text-red-400 mt-0.5">{selectedAlertForDetail.currentValue}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400">Configured Threshold:</p>
+                      <p className="text-sm font-bold text-slate-200 mt-0.5">{selectedAlertForDetail.thresholdValue}</p>
+                    </div>
+                  </div>
+
+                  {/* OWNERSHIP & ESCALATION BANNER */}
+                  <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Assigned Technician:</span>
+                      <span className="font-bold text-blue-400 text-sm">
+                        {INITIAL_USERS.find(u => u.id === selectedAlertForDetail.assignedTo)?.name}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setIsReassignModalOpen(true);
+                      }}
+                      className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium"
+                    >
+                      Reassign Owner
+                    </button>
+                  </div>
+
+                  {/* LAST REPAIR CONTEXT (Informs current troubleshooting) */}
+                  {(() => {
+                    const m = machines.find(mach => mach.id === selectedAlertForDetail.machineId);
+                    return m?.lastRepair ? (
+                      <div className="p-3.5 rounded-xl bg-blue-950/20 border border-blue-900/40 text-xs">
+                        <div className="flex justify-between items-center text-blue-300 font-semibold mb-1">
+                          <span className="flex items-center">
+                            <span className="mr-1.5"><IconWrench /></span> Context: Most Recent Machine Repair
+                          </span>
+                          <span className="text-[11px] font-mono">{m.lastRepair.date}</span>
+                        </div>
+                        <p className="text-slate-300 text-xs">{m.lastRepair.description}</p>
+                        <p className="text-[11px] text-slate-400 font-mono mt-1">Parts: {m.lastRepair.partsUsed}</p>
+                      </div>
+                    ) : null;
+                  })()}
+
+                  {/* PLAYBOOK RECOMMENDED STEPS */}
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center">
+                      <span className="mr-1.5 text-blue-400"><IconBookOpen /></span>
+                      Prescribed Playbook Response Steps:
+                    </h3>
+                    {(() => {
+                      const m = machines.find(mach => mach.id === selectedAlertForDetail.machineId);
+                      const pb = m ? playbooks.find(p => p.id === m.playbookId) : null;
+                      const steps = selectedAlertForDetail.severity === 'critical' ? pb?.steps.critical : pb?.steps.warning;
+
+                      return (
+                        <div className="space-y-2">
+                          {steps?.map((step, idx) => (
+                            <label
+                              key={idx}
+                              className="flex items-start space-x-2.5 p-2.5 rounded-lg bg-slate-900 border border-slate-800/80 text-xs text-slate-200 hover:bg-slate-850 cursor-pointer"
+                            >
+                              <input type="checkbox" className="mt-0.5 rounded border-slate-700 text-blue-600 bg-slate-800" />
+                              <span>{step}</span>
+                            </label>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* WORKFLOW AUDIT TIMELINE */}
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Action & Escalation Log</h3>
+                    <div className="space-y-2 max-h-40 overflow-y-auto bg-slate-900/40 p-3 rounded-lg border border-slate-800">
+                      {selectedAlertForDetail.actions.map(act => (
+                        <div key={act.id} className="text-xs flex flex-col space-y-0.5 border-l-2 border-blue-500 pl-2">
+                          <div className="flex items-center justify-between text-slate-400 text-[10px]">
+                            <span className="font-bold text-slate-300">{act.userName}</span>
+                            <span className="font-mono">{act.time}</span>
+                          </div>
+                          <p className="text-slate-300">{act.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Modal Footer Workflow Actions */}
+                <div className="p-4 bg-slate-900 border-t border-slate-800 flex flex-wrap gap-2 justify-between items-center">
+                  <div className="flex items-center space-x-2">
+                    {/* Acknowledge Button */}
+                    {selectedAlertForDetail.status === 'open' && (
+                      <button
+                        onClick={() => {
+                          handleAlertStatusChange(selectedAlertForDetail.id, 'acknowledged', 'Acknowledged by technician. On-site inspection begun.');
+                          setSelectedAlertForDetail(null);
+                        }}
+                        className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs transition-colors"
+                      >
+                        Acknowledge Alert
+                      </button>
+                    )}
+
+                    {/* In Progress Button */}
+                    {selectedAlertForDetail.status === 'acknowledged' && (
+                      <button
+                        onClick={() => {
+                          handleAlertStatusChange(selectedAlertForDetail.id, 'in_progress', 'Technician started physical calibration/repair.');
+                          setSelectedAlertForDetail(null);
+                        }}
+                        className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors"
+                      >
+                        Start Work (In Progress)
+                      </button>
+                    )}
+
+                    {/* Escalate Manually */}
+                    {selectedAlertForDetail.status !== 'resolved' && (
+                      <button
+                        onClick={() => {
+                          handleAlertStatusChange(selectedAlertForDetail.id, 'escalated', 'Manual escalation requested: requires senior specialist.');
+                          setSelectedAlertForDetail(null);
+                        }}
+                        className="px-3 py-2 rounded-lg bg-purple-950 border border-purple-800 text-purple-200 hover:bg-purple-900 text-xs font-semibold"
+                      >
+                        Escalate to Supervisor
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Resolve & Record Repair */}
+                  {selectedAlertForDetail.status !== 'resolved' && (
+                    <button
+                      onClick={() => {
+                        setAlertToResolve(selectedAlertForDetail);
+                        setIsResolveModalOpen(true);
+                        setSelectedAlertForDetail(null);
+                      }}
+                      className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md transition-colors"
+                    >
+                      Resolve & Log Repair &rarr;
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* MODAL 2: RESOLVE & RECORD REPAIR (PRD Requirement 7) */}
+          {/* ======================================================== */}
+          {isResolveModalOpen && alertToResolve && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+                <div>
+                  <h3 className="text-base font-bold text-white">Resolve Alert & Record Repair</h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Closing an alert requires updating the machine’s **Last Repair Information** for future diagnostic reuse.
+                  </p>
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    const description = formData.get('description');
+                    const partsUsed = formData.get('partsUsed');
+
+                    // 1. Add Repair record
+                    const newRepair = {
+                      id: 'rep-' + Date.now(),
+                      machineId: alertToResolve.machineId,
+                      repairDate: new Date().toISOString().split('T')[0],
+                      performedBy: currentUser.id,
+                      technicianName: currentUser.name,
+                      description: description,
+                      partsUsed: partsUsed
+                    };
+
+                    setRepairs(prev => [newRepair, ...prev]);
+
+                    // 2. Update Machine's Last Repair pointer
+                    setMachines(prev => prev.map(m => {
+                      if (m.id === alertToResolve.machineId) {
+                        return {
+                          ...m,
+                          lastRepair: newRepair
+                        };
+                      }
+                      return m;
+                    }));
+
+                    // 3. Mark alert resolved
+                    handleAlertStatusChange(alertToResolve.id, 'resolved', `Issue resolved by ${currentUser.name}. Repair record #${newRepair.id} created.`);
+
+                    dispatchNotification(
+                      `Machine Restored: ${machines.find(m => m.id === alertToResolve.machineId)?.name}`,
+                      `Alert #${alertToResolve.id} closed. Last Repair updated.`,
+                      'Production Manager & Plant'
+                    );
+
+                    setIsResolveModalOpen(false);
+                    setAlertToResolve(null);
+                  }}
+                  className="space-y-4 text-xs"
+                >
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Actions Taken & Root Cause</label>
+                    <textarea
+                      name="description"
+                      required
+                      placeholder="e.g., Flushed bearing casing, cleared clogged filter line, torqued coupling bolts to 45 Nm."
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200 focus:ring-1 focus:ring-blue-500 h-24"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Parts / Consumables Replaced</label>
+                    <input
+                      name="partsUsed"
+                      placeholder="e.g., SKF 6205 bearing, 200ml Kluber grease, O-ring 32mm"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200 focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex justify-end space-x-3 pt-3 border-t border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setIsResolveModalOpen(false)}
+                      className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+                    >
+                      Save Repair & Close Alert
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* MODAL 3: MANUAL SIGNAL / OPERATOR LOG (PRD Requirement 3) */}
+          {/* ======================================================== */}
+          {isManualLogModalOpen && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-base font-bold text-white">Manual Signal / Operator Log</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Enter manual gauge readings or observations. Evaluates against Playbooks immediately.
+                    </p>
+                  </div>
+                  <button onClick={() => setIsManualLogModalOpen(false)} className="text-slate-400 hover:text-white">✕</button>
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    const machineId = formData.get('machineId');
+                    const signalType = formData.get('signalType');
+                    const value = formData.get('value');
+                    const notes = formData.get('notes');
+                    handleManualSignalSubmit(machineId, signalType, value, notes);
+                  }}
+                  className="space-y-3 text-xs"
+                >
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Target Machine</label>
+                    <select
+                      name="machineId"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200 focus:ring-1 focus:ring-blue-500"
+                    >
+                      {machines.map(m => (
+                        <option key={m.id} value={m.id}>{m.name} ({m.type})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Signal Type</label>
+                    <select
+                      name="signalType"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200 focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="temp">Temperature Reading (°C)</option>
+                      <option value="vib">Vibration RMS (mm/s)</option>
+                      <option value="runtime">Operating Runtime (Hours)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Measured Value</label>
+                    <input
+                      name="value"
+                      type="number"
+                      step="0.1"
+                      required
+                      placeholder="e.g. 84.5"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200 focus:ring-1 focus:ring-blue-500 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Observation Note (Optional)</label>
+                    <textarea
+                      name="notes"
+                      placeholder="e.g., Whining noise heard at motor coupling during batch changeover."
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200 focus:ring-1 focus:ring-blue-500 h-16"
+                    />
+                  </div>
+
+                  <div className="flex justify-end space-x-2 pt-3 border-t border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setIsManualLogModalOpen(false)}
+                      className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold"
+                    >
+                      Submit & Run Rules Engine
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* MODAL 4: REASSIGN OWNER MODAL (PRD Requirement 5) */}
+          {/* ======================================================== */}
+          {isReassignModalOpen && selectedAlertForDetail && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl">
+                <h3 className="text-base font-bold text-white">Reassign Alert Responsibility</h3>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    const newUserId = formData.get('newUserId');
+                    const reason = formData.get('reason');
+                    handleReassignAlert(selectedAlertForDetail.id, newUserId, reason);
+                    setIsReassignModalOpen(false);
+                    setSelectedAlertForDetail(null);
+                  }}
+                  className="space-y-3 text-xs"
+                >
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">New Owner</label>
+                    <select
+                      name="newUserId"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200"
+                    >
+                      {INITIAL_USERS.map(u => (
+                        <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Reason for Reassignment</label>
+                    <input
+                      name="reason"
+                      required
+                      placeholder="e.g. Lead tech currently engaged on Line 1 breakdown"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-200"
+                    />
+                  </div>
+                  <div className="flex justify-end space-x-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsReassignModalOpen(false)}
+                      className="px-3 py-1.5 rounded bg-slate-800 text-slate-300"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold"
+                    >
+                      Confirm Reassignment
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* MODAL 5: MACHINE DEEP DIVE (PRD Requirement 2, 7) */}
+          {/* ======================================================== */}
+          {selectedMachineForDetail && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+                <div className="p-5 border-b border-slate-800 flex justify-between items-start bg-slate-900">
+                  <div>
+                    <span className="text-[10px] font-mono text-blue-400 uppercase tracking-wider">
+                      {lines.find(l => l.id === selectedMachineForDetail.lineId)?.name}
+                    </span>
+                    <h2 className="text-lg font-bold text-white">{selectedMachineForDetail.name}</h2>
+                    <p className="text-xs text-slate-400">Type: {selectedMachineForDetail.type}</p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedMachineForDetail(null)}
+                    className="p-1 rounded text-slate-400 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-5 overflow-y-auto flex-1 text-xs">
+                  {/* Current Health & Telemetry */}
+                  <div className="grid grid-cols-3 gap-3 bg-slate-900 p-3 rounded-xl border border-slate-800 text-center font-mono">
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Live Temperature</span>
+                      <span className="text-base font-bold text-slate-100">{selectedMachineForDetail.signals.temp}°C</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Vibration RMS</span>
+                      <span className="text-base font-bold text-slate-100">{selectedMachineForDetail.signals.vib} mm/s</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Current Health</span>
+                      <span className={`text-base font-bold uppercase ${
+                        selectedMachineForDetail.status === 'critical' ? 'text-red-400' :
+                        selectedMachineForDetail.status === 'warning' ? 'text-amber-400' : 'text-emerald-400'
+                      }`}>
+                        {selectedMachineForDetail.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* OWNERSHIP ASSIGNMENT */}
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1">
+                    <p className="font-semibold text-slate-300">Responsibility Matrix</p>
+                    <div className="flex justify-between text-slate-400">
+                      <span>Primary Maintenance Engineer:</span>
+                      <span className="font-bold text-slate-200">
+                        {INITIAL_USERS.find(u => u.id === selectedMachineForDetail.primaryOwnerId)?.name}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-slate-400">
+                      <span>Backup Maintenance Engineer:</span>
+                      <span className="font-bold text-slate-200">
+                        {INITIAL_USERS.find(u => u.id === selectedMachineForDetail.backupOwnerId)?.name}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* LAST REPAIR INFORMATION & REPAIR LOG */}
+                  <div className="space-y-2">
+                    <h3 className="font-bold uppercase tracking-wider text-slate-300 flex items-center">
+                      <span className="mr-1.5 text-blue-400"><IconWrench /></span>
+                      Machine Repair History & Last Repair Details
+                    </h3>
+                    <div className="space-y-2">
+                      {repairs
+                        .filter(r => r.machineId === selectedMachineForDetail.id)
+                        .map(r => (
+                          <div key={r.id} className="p-3 rounded-lg bg-slate-900 border border-slate-800">
+                            <div className="flex justify-between text-slate-400 text-[11px]">
+                              <span className="font-mono text-blue-300 font-bold">{r.repairDate}</span>
+                              <span>By: {r.technicianName}</span>
+                            </div>
+                            <p className="text-slate-200 mt-1">{r.description}</p>
+                            <p className="text-[10px] text-slate-400 font-mono mt-0.5">Parts Replaced: {r.partsUsed}</p>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-900 border-t border-slate-800 flex justify-end">
+                  <button
+                    onClick={() => setSelectedMachineForDetail(null)}
+                    className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-semibold"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* MODAL 6: PLAYBOOK CONFIGURATION EDITOR (PRD Requirement 1) */}
+          {/* ======================================================== */}
+          {isPlaybookEditorOpen && playbookToEdit && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-base font-bold text-white">Configure Early-Warning Playbook</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Define early-warning rules, escalation times, and response checklists.</p>
+                  </div>
+                  <button onClick={() => setIsPlaybookEditorOpen(false)} className="text-slate-400 hover:text-white">✕</button>
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    const updatedPb = {
+                      ...playbookToEdit,
+                      name: formData.get('name'),
+                      tempWarn: parseFloat(formData.get('tempWarn')),
+                      tempCrit: parseFloat(formData.get('tempCrit')),
+                      vibWarn: parseFloat(formData.get('vibWarn')),
+                      vibCrit: parseFloat(formData.get('vibCrit')),
+                      escalationTimeSec: parseInt(formData.get('escalationTimeSec')),
+                    };
+
+                    setPlaybooks(prev => {
+                      const exists = prev.some(p => p.id === updatedPb.id);
+                      if (exists) {
+                        return prev.map(p => p.id === updatedPb.id ? updatedPb : p);
+                      }
+                      return [...prev, updatedPb];
+                    });
+
+                    dispatchNotification('Playbook Saved', `Rules for ${updatedPb.name} successfully updated.`, 'All Line Managers');
+                    setIsPlaybookEditorOpen(false);
+                  }}
+                  className="space-y-4 text-xs"
+                >
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Playbook Name</label>
+                    <input
+                      name="name"
+                      defaultValue={playbookToEdit.name}
+                      required
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-amber-400 font-mono font-semibold mb-1">Temp Warning (°C)</label>
+                      <input
+                        name="tempWarn"
+                        type="number"
+                        step="0.5"
+                        defaultValue={playbookToEdit.tempWarn}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-red-400 font-mono font-semibold mb-1">Temp Critical (°C)</label>
+                      <input
+                        name="tempCrit"
+                        type="number"
+                        step="0.5"
+                        defaultValue={playbookToEdit.tempCrit}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-amber-400 font-mono font-semibold mb-1">Vibration Warning (mm/s)</label>
+                      <input
+                        name="vibWarn"
+                        type="number"
+                        step="0.1"
+                        defaultValue={playbookToEdit.vibWarn}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-red-400 font-mono font-semibold mb-1">Vibration Critical (mm/s)</label>
+                      <input
+                        name="vibCrit"
+                        type="number"
+                        step="0.1"
+                        defaultValue={playbookToEdit.vibCrit}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-purple-400 font-mono font-semibold mb-1">
+                      Time-to-Escalate Unacknowledged Alerts (Seconds)
+                    </label>
+                    <input
+                      name="escalationTimeSec"
+                      type="number"
+                      defaultValue={playbookToEdit.escalationTimeSec}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-200 font-mono"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      If unacknowledged within this window, alerts escalate to the Plant Supervisor with high-priority dispatch.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end space-x-2 pt-3 border-t border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setIsPlaybookEditorOpen(false)}
+                      className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold"
+                    >
+                      Save Playbook
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* DRAWER: NOTIFICATIONS DISPATCH FEED (PRD Requirement 4) */}
+          {/* ======================================================== */}
+          {isNotificationDrawerOpen && (
+            <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-96 bg-slate-950 border-l border-slate-800 shadow-2xl p-5 flex flex-col">
+              <div className="flex justify-between items-center pb-3 border-b border-slate-800">
+                <div className="flex items-center space-x-2">
+                  <IconBell />
+                  <h3 className="font-bold text-sm text-white">Dispatched Alerts Feed</h3>
+                </div>
+                <button onClick={() => setIsNotificationDrawerOpen(false)} className="text-slate-400 hover:text-white">✕</button>
+              </div>
+
+              <div className="mt-4 flex-1 overflow-y-auto space-y-3">
+                {notifications.map(n => (
+                  <div key={n.id} className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs space-y-1">
+                    <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+                      <span>{n.channel}</span>
+                      <span>{n.time}</span>
+                    </div>
+                    <h4 className="font-bold text-slate-200">{n.title}</h4>
+                    <p className="text-slate-400 text-[11px]">{n.body}</p>
+                    <div className="pt-1 text-[10px] text-blue-400 font-mono">
+                      Recipient: {n.recipient}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-4 border-t border-slate-800 text-center">
+                <p className="text-[10px] text-slate-500 font-mono">Simulating real-time WebPush / SMTP Dispatches</p>
+              </div>
+            </div>
+          )}
+
+          {/* FOOTER */}
+          <footer className="border-t border-slate-800 py-3 px-4 text-center text-xs text-slate-400 font-mono">
+            LinePulse Control Hub &copy; {new Date().getFullYear()} &mdash; Early-Warning Operational Machine Health
+          </footer>
+        </div>
+      );
+    }
+
+    // Render the React application
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
+
+What is Included in this Prototype:
+
+1.  Dual Signal Ingestion Engine
+
+      - Automated IoT Stream: Runs every 5 seconds, jittering telemetry on
+        machines and feeding values directly to the rules engine.
+      - Manual Operator Log: Click + Manual Log in the header to submit field
+        gauge readings (temperature, vibration, runtime) and technician
+        observation notes.
+
+2.  Configurable Early-Warning Playbooks
+
+      - Click the Health Playbooks tab to view or edit playbook parameters:
+          - Warning & Critical thresholds for Temperature, Vibration RMS, and
+            Runtime.
+          - Specific step-by-step checklist procedures for warning vs. critical
+            states.
+          - Escalation SLA timeouts and designated escalation supervisor roles.
+
+3.  Unified Dashboard View
+
+      - Live KPI counters for Critical Risks, Early Warnings, Escalated Alerts,
+        and Monitored Equipment.
+      - Interactive Filtering: Filter by Line (Stamping, CNC, Packaging), Health
+        State, or click "Only My Assigned Alerts".
+      - Live Risk Stream: Color-coded cards displaying the breached sensor value
+        vs. playbook limit, current owner, and status.
+
+4.  Last Repair Information (PRD Feature #7)
+
+      - Displayed directly on every machine card and in the deep-dive modal.
+      - Gives technicians immediate historical context (date of repair, actions
+        taken, parts replaced) while troubleshooting.
+      - When resolving an alert, the system automatically prompts the user to
+        record the repair summary and parts used, which updates the machine's
+        permanent ledger.
+
+5.  Responsibility Assignment & Escalation Workflow
+
+      - Every alert is automatically bound to the machine's primary/backup
+        owner.
+      - Supports live status transitions: Open \rightarrow Acknowledged
+        \rightarrow In Progress \rightarrow Resolved.
+      - Auto-Escalation Engine: Background timer triggers an escalation if an
+        alert remains unacknowledged beyond the playbook SLA, updating status to
+        Escalated and dispatching high-priority alerts to the Plant Supervisor.
+      - Click Reassign Owner on any alert to reassign responsibility with an
+        auditable reason.
+
+6.  Notification Dispatcher Simulation
+
+      - Click the notification bell to view real-time push and email dispatches
+        triggered by rule breaches, escalations, or manual entries.
