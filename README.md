@@ -1,93 +1,118 @@
-# LinePulse-Control-Hub
-AI-powered predictive maintenance and factory line monitoring prototype
-# LinePulse Control Hub
-### Smart Factory Line Orchestrator – TCS iON AI Hackathon
 
-## Project Overview
+# 🚀 LinePulse Control Hub
+### Smart Factory Line Orchestrator | TCS iON AI Hackathon
 
-LinePulse Control Hub is a prototype concept developed as part of the TCS iON AI Hackathon. It addresses a major challenge in manufacturing industries: identifying potential machine failures before they interrupt production.
+![Project](https://img.shields.io/badge/Project-AI%20Hackathon-blue)
+![Recognition](https://img.shields.io/badge/Recognition-Certificate%20of%20Merit-success)
+![Status](https://img.shields.io/badge/Status-Prototype-orange)
 
-Traditional factory monitoring systems often focus on displaying historical machine data rather than helping teams identify and respond to upcoming operational risks.
+## 📌 Project Overview
 
-Our proposed solution focuses on early-warning signals, machine health monitoring, risk identification and preventive action.
+LinePulse Control Hub is a smart factory monitoring solution concept developed during the TCS iON AI Hackathon.
 
-## Problem Statement
+The project addresses a major manufacturing challenge: unexpected machine downtime caused by a lack of effective early-warning monitoring and preventive action.
 
-Many manufacturing units face unexpected production interruptions because early warning signs of machine failure are not properly identified, communicated or acted upon.
+The proposed platform aims to help manufacturing teams identify potential machine risks, monitor warning signals and coordinate preventive maintenance activities.
 
-This results in:
-- Unplanned machine downtime.
-- Production delays.
-- Increased maintenance costs.
-- Reduced operational efficiency.
+## 🎯 Problem Statement
 
-## Proposed Solution
+Traditional factory monitoring systems often focus on displaying historical machine data rather than identifying and communicating upcoming operational risks.
 
-LinePulse Control Hub proposes a centralised monitoring platform that helps factory teams identify potential machine risks and take preventive action.
+This can result in:
+
+- Unexpected machine downtime
+- Production delays
+- Increased maintenance costs
+- Reduced operational efficiency
+
+## 💡 Proposed Solution
+
+LinePulse Control Hub proposes a centralised monitoring platform to improve machine-risk visibility and preventive action.
 
 ### Key Features
 
-1. **Machine Health Monitoring** – Monitor machine conditions and warning signals.
-2. **Early-Warning System** – Identify potential operational risks using defined warning rules.
-3. **Risk Overview Dashboard** – Display upcoming machine-related risks.
-4. **Manual Signal Logging** – Allow operational teams to record observations.
-5. **Responsibility Assignment** – Assign identified issues to responsible team members.
-6. **Early-Warning Playbooks** – Suggest preventive actions for identified risks.
+1. Machine Health Monitoring
+2. Early-Warning Signals
+3. Upcoming Risk Overview Dashboard
+4. Manual Signal Logging
+5. Responsibility Assignment
+6. Early-Warning Playbooks
 
-## Root Cause Analysis
+## 🔍 Root Cause Analysis – 5 Whys
 
-Using the 5 Whys approach, the underlying issue identified was that early-warning machine health monitoring was not sufficiently defined, funded or assigned clear ownership as a core operational requirement.
+The analysis identified a key underlying issue:
 
-## Target Audience
+Early-warning machine health monitoring was not sufficiently defined, funded or assigned clear ownership as a core operational requirement.
 
-- Small and medium manufacturing enterprises.
-- Factory operations managers.
-- Maintenance teams.
-- Production supervisors.
+## 🏭 Target Audience
 
-## Technology and Development
+- Small and Medium Manufacturing Enterprises
+- Factory Operations Managers
+- Maintenance Teams
+- Production Supervisors
 
-- AI-assisted development using Claude and Google tools.
-- Website prototype development.
-- Problem identification and solution design.
-- Dashboard and workflow conceptualisation.
+## 🛠️ Technology & Development
 
-*Note: This is a prototype demonstrating the proposed solution, not a deployed industrial predictive-maintenance system.*
+- Claude AI
+- Google tools
+- AI-assisted website prototyping
+- Dashboard and workflow conceptualisation
 
-## My Contribution
+Note: This project is a website prototype demonstrating the proposed solution. It is not a deployed industrial predictive-maintenance system.
 
-I participated individually in the TCS iON AI Hackathon and independently worked on:
-- Understanding and analysing the problem statement.
-- Identifying the root cause.
-- Developing the proposed solution.
-- Designing the LinePulse Control Hub concept.
-- Building a website prototype with AI-assisted tools.
+## 👨‍💻 My Contribution
 
-## Future Enhancements
+Individual Participant – TCS iON AI Hackathon
 
-- Real-time IoT sensor integration.
-- Machine-learning-based failure prediction.
-- Historical machine performance analysis.
-- Automated maintenance alerts.
-- Advanced analytics and reporting.
+- Analysed the problem statement.
+- Identified the underlying root cause.
+- Developed the proposed solution concept.
+- Designed the LinePulse Control Hub workflow.
+- Independently developed the website prototype using AI-assisted tools.
 
-## Project Outcome
+## 🏆 Certificate of Merit
 
-This experience helped me understand how to transform a real-world industrial problem into a structured technology-based solution, from problem identification to prototype development.
+Proud recipient of a Certificate of Merit from Tata Consultancy Services (TCS iON) for securing a Merit position in the AI Hackathon held on 30 October 2026.
 
-**Project:** LinePulse Control Hub  
-**Event:** TCS iON AI Hackathon  
-**Participation:** Individual  
-## Certificate of Merit – TCS iON AI Hackathon
+**Certificate Details:**
+- Achievement: Merit Position
+- Organisation: Tata Consultancy Services – TCS iON
+- Issued Date: 5 November 2026
 
-Proud to have received a **Certificate of Merit from Tata Consultancy Services (TCS iON)** for securing a Merit position in the AI Hackathon held on 30 October 2026.
+📄 [View My Certificate](certificates/Certificate-of-Merit.pdf)
 
-The recognition acknowledges my creativity, problem-solving skills and successful completion of the AI challenge.
+## 📸 Project Screenshots
 
-- **Achievement:** Merit Position
-- **Event:** TCS iON AI Hackathon
-- **Issuing Organisation:** Tata Consultancy Services (TCS iON)
-- **Date of Event:** 30 October 2026
-- **Certificate Issue Date:** 5 November 2026
+Add your actual screenshots below:
 
-[View Certificate](certificates/Certificate-of-Merit.pdf)
+![Homepage](screenshots/homepage.png)
+
+![Dashboard](screenshots/dashboard.png)
+
+![Features](screenshots/features.png)
+
+## 🚀 Future Enhancements
+
+- Real-time IoT sensor integration
+- Machine-learning-based failure prediction
+- Automated maintenance alerts
+- Historical machine performance analytics
+- Advanced reporting and visualisation
+
+## 📚 Key Learnings
+
+- Real-world problem identification
+- Root cause analysis using the 5 Whys
+- AI-assisted development
+- Solution design and prototyping
+- Industrial problem-solving
+
+---
+
+**Project Name:** LinePulse Control Hub
+
+**Event:** TCS iON AI Hackathon
+
+**Participation:** Individual
+
+**Recognition:** Certificate of Merit
