@@ -85,7 +85,7 @@ Proud recipient of a Certificate of Merit from Tata Consultancy Services (TCS iO
 
 Add your actual screenshots below:
 
-![Homepage](screenshots/homepage.png)
+![Homepage](screenshots/hackathon2.jpeg)
 
 ![Dashboard](screenshots/dashboard.png)
 
