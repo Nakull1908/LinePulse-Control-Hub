@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>LinePulse Control Hub</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#E6EAED;--panel:#fff;--ink:#17212B;--mute:#5B6874;--line:#C7CFD6;--ok:#2B8A57;--warn:#C98A00;--crit:#D3302A;--acc:#2A5C8C;--soft:#F1F4F6;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10161B;--panel:#192129;--ink:#E6ECF1;--mute:#93A1AD;--line:#2D3946;--ok:#46B879;--warn:#E8AE2C;--crit:#F0605A;--acc:#6FA8DC;--soft:#202B35;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#10161B;--panel:#192129;--ink:#E6ECF1;--mute:#93A1AD;--line:#2D3946;--ok:#46B879;--warn:#E8AE2C;--crit:#F0605A;--acc:#6FA8DC;--soft:#202B35;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 Barlow,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+h1,h2,h3{font-family:"Barlow Semi Condensed",Barlow,sans-serif;margin:0;font-weight:600}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;padding:16px 24px;background:var(--panel);border-bottom:1px solid var(--line)}
+h1{font-size:26px;letter-spacing:.01em}h1 small{font:400 14px Barlow;color:var(--mute);margin-left:10px}
+.kpis{display:flex;gap:10px;flex-wrap:wrap}.kpi{padding:6px 14px;border-left:5px solid var(--line);background:var(--soft)}
+.kpi b{font:600 24px "Barlow Semi Condensed";display:block;line-height:1.1}.kpi span{font-size:13px;color:var(--mute)}
+.kpi.c{border-color:var(--crit)}.kpi.w{border-color:var(--warn)}.kpi.e{border-color:var(--acc)}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line);background:var(--panel);padding:7px 13px;border-radius:4px}.btn:hover{background:var(--soft)}
+.btn.p{background:var(--acc);border-color:var(--acc);color:#fff}.btn.d{border-color:var(--crit);color:var(--crit)}
+select,input{border:1px solid var(--line);background:var(--panel);padding:7px 9px;border-radius:4px;min-width:0}
+main{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr);gap:24px;padding:24px;align-items:start}
+@media (max-width:900px){main{grid-template-columns:1fr;padding:14px}header{padding:14px}}
+.line{margin-bottom:22px}.line h2{font-size:20px;margin-bottom:8px}.line h2 span{font:400 14px Barlow;color:var(--mute);margin-left:8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.tile{text-align:left;border:1px solid var(--line);border-left:8px solid var(--ok);background:var(--panel);padding:10px 12px;border-radius:3px;display:block;width:100%}
+.tile.warning{border-left-color:var(--warn)}.tile.critical{border-left-color:var(--crit);animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 4px color-mix(in srgb,var(--crit) 30%,transparent)}}
+@media (prefers-reduced-motion:reduce){.tile.critical{animation:none}}
+.tile b{font:600 17px "Barlow Semi Condensed";display:flex;justify-content:space-between;gap:6px}
+.tile .st{font:500 13px Barlow;color:var(--ok)}.tile.warning .st{color:var(--warn)}.tile.critical .st{color:var(--crit)}
+.rd{font-size:14px;margin:4px 0}.rp{font-size:13px;color:var(--mute)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:14px}
+.panel h2{font-size:20px;margin-bottom:8px}.flt{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;font-size:14px}
+.row{display:grid;grid-template-columns:12px 1fr auto;gap:2px 10px;padding:9px 6px;border-top:1px solid var(--line);width:100%;background:none;border-left:0;border-right:0;border-bottom:0;text-align:left}
+.row:hover{background:var(--soft)}.dot{width:12px;height:12px;border-radius:50%;background:var(--warn);margin-top:5px}.dot.critical{background:var(--crit)}
+.row .m{font-weight:600}.row .s{font-size:13px;color:var(--mute);grid-column:2}.row .a{font-size:13px;color:var(--mute);text-align:right;grid-row:1/3;grid-column:3}
+.chip{display:inline-block;font-size:12px;padding:1px 8px;border-radius:10px;background:var(--soft);border:1px solid var(--line)}
+.chip.critical{border-color:var(--crit);color:var(--crit)}.chip.warning{border-color:var(--warn);color:var(--warn)}.chip.escalated{background:var(--acc);color:#fff;border-color:var(--acc)}
+.empty{color:var(--mute);padding:14px 4px}
+#dr{position:fixed;top:0;right:0;bottom:0;width:min(520px,100%);background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding:calc(18px + env(safe-area-inset-top,0px)) 20px calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(105%);transition:transform .2s;z-index:20;box-shadow:-8px 0 24px rgba(0,0,0,.18)}
+#dr.on{transform:none}@media (prefers-reduced-motion:reduce){#dr{transition:none}}
+#dr h2{font-size:24px}#dr h3{font-size:17px;margin:18px 0 6px}.x{float:right}
+.cells{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.cell{background:var(--soft);padding:8px;border-left:4px solid var(--ok)}
+.cell.warning{border-color:var(--warn)}.cell.critical{border-color:var(--crit)}.cell b{font:600 20px "Barlow Semi Condensed";display:block}.cell span{font-size:12px;color:var(--mute)}
+.steps{display:flex;gap:4px;margin:8px 0}.steps span{flex:1;text-align:center;font-size:12px;padding:5px 2px;background:var(--soft);border-bottom:4px solid var(--line)}
+.steps span.on{border-color:var(--acc);font-weight:600}.steps span.done{border-color:var(--ok)}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.f{display:grid;gap:6px;margin:6px 0}.f.h{grid-template-columns:1fr 1fr auto}
+.tl{list-style:none;margin:0;padding:0;font-size:14px}.tl li{padding:6px 0 6px 12px;border-left:3px solid var(--line);margin-left:4px}.tl small{color:var(--mute);display:block}
+ul.pl{margin:4px 0;padding-left:20px}table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left;font-weight:400}
+#toasts{position:fixed;left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:grid;gap:8px;z-index:30;max-width:min(380px,calc(100% - 32px))}
+.toast{background:var(--ink);color:var(--bg);padding:9px 13px;border-radius:4px;font-size:14px}
+</style></head><body>
+<header>
+ <h1>LinePulse Control Hub<small>Pune plant · simulated signals</small></h1>
+ <div class="kpis" id="kpis"></div>
+ <div class="tools">
+  <label>Viewing as <select id="who"></select></label>
+  <button class="btn p" id="sim">Simulate a fault</button>
+ </div>
+</header>
+<main>
+ <section id="lines" aria-label="Machine health"></section>
+ <section class="panel" aria-label="Active alerts">
+  <h2>Active alerts</h2>
+  <div class="flt">
+   <select id="fl" aria-label="Line"></select>
+   <select id="fs" aria-label="Severity"><option value="">All severities</option><option value="critical">Critical</option><option value="warning">Warning</option></select>
+   <label><input type="checkbox" id="fm"> Assigned to me</label>
+  </div>
+  <div id="alerts"></div>
+ </section>
+</main>
+<aside id="dr" aria-label="Machine detail"></aside>
+<div id="toasts" aria-live="polite"></div>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const U={rohan:"Rohan (Production manager)",priya:"Priya (Engineer)",arjun:"Arjun (Engineer)",meera:"Meera (Supervisor)"};
+const nm=k=>U[k].split(" ")[0];
+const LINES=["Line 1 · Stamping","Line 2 · Assembly","Line 3 · Packing"];
+const mk=(id,name,line,o,b,bt,bv,rt)=>({id,name,line,owner:o,backup:b,bt,bv,rt,fa:0,fault:false,t:bt,v:bv,log:[]});
+const M=[mk("P-101","Press P-101",0,"priya","arjun",58,2.1,210),mk("P-102","Press P-102",0,"arjun","priya",61,2.4,330),mk("C-101","Conveyor C-101",0,"priya","arjun",46,1.6,120),
+mk("R-201","Robot arm R-201",1,"arjun","priya",52,1.9,260),mk("C-201","Conveyor C-201",1,"priya","arjun",47,1.7,432),mk("W-201","Welder W-201",1,"arjun","priya",64,2.8,300),
+mk("S-301","Sealer S-301",2,"priya","arjun",55,2.0,180),mk("L-301","Labeller L-301",2,"arjun","priya",44,1.4,90)];
+const day=n=>new Date(2026,9,30-n);
+const R={"P-101":[{d:day(41),what:"Vibration spike on ram",did:"Replaced worn bearing, re-torqued mounts",parts:"Bearing 6208",by:"priya"}],
+"P-102":[{d:day(18),what:"Overheating at clutch",did:"Flushed lubricant, cleaned cooling fins",parts:"Lubricant 2 L",by:"arjun"}],
+"C-101":[{d:day(75),what:"Belt slipping",did:"Replaced drive belt",parts:"Belt B-54",by:"priya"}],"W-201":[{d:day(9),what:"Unstable current",did:"Replaced contact tip and cable",parts:"Contact tip",by:"arjun"}]};
+const RULES=[["temp","Temperature","°C",75,90,"t"],["vib","Vibration","mm/s",4.5,7,"v"],["runtime","Hours since service","h",400,480,"rt"]];
+const STEP={temp:"Check lubrication and coolant flow",vib:"Inspect bearings and mounting bolts",runtime:"Schedule planned service"};
+const ESC={critical:30,warning:60};
+let A=[],cur="rohan",open=null,rez=false,seq=1;
+const now=()=>Date.now(),fmtAge=ms=>{const s=Math.max(0,Math.floor(ms/1e3));return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
+const fmtD=d=>d.toLocaleDateString("en-GB",{day:"numeric",month:"short"});
+const act=id=>A.find(a=>a.mid==id&&a.status!="resolved");
+function toast(t){const e=document.createElement("div");e.className="toast";e.textContent=t;$("#toasts").append(e);setTimeout(()=>e.remove(),5000)}
+function log(a,who,txt){a.log.push({who,txt,t:now()})}
+function sevOf(m){let w=null;for(const [k,l,u,wr,cr,f] of RULES){const v=m[f];if(v>=cr)return{sev:"critical",sig:k,val:v,thr:cr,u};if(v>=wr&&!w)w={sev:"warning",sig:k,val:v,thr:wr,u}}return w}
+function raise(m,r){let a=act(m.id);
+ if(!a){a={id:seq++,mid:m.id,sev:r.sev,status:"open",sig:r.sig,val:r.val,thr:r.thr,u:r.u,owner:m.owner,created:now(),log:[]};A.push(a);
+  log(a,"system",`Alert created: ${r.sig} ${r.val} ${r.u} crossed ${r.thr} ${r.u}. Emailed and pushed to ${nm(m.owner)} (backup ${nm(m.backup)}).`);
+  toast(`${r.sev==="critical"?"Critical":"Warning"} on ${m.name}: ${nm(m.owner)} notified by email and push`);if(r.sev==="critical")toast("Meera (Supervisor) also notified")}
+ else if(r.sev==="critical"&&a.sev==="warning"){a.sev="critical";a.sig=r.sig;a.val=r.val;a.thr=r.thr;a.u=r.u;log(a,"system",`Upgraded to critical: ${r.sig} ${r.val} ${r.u}. Supervisor notified.`);toast(`${m.name} upgraded to critical`)}
+ else if(a.sig===r.sig)a.val=r.val}
+function tick(){const t=now();
+ for(const m of M){if(m.fault)m.fa=Math.min(m.fa+4,45);
+  m.t=+(m.bt+m.fa+(Math.random()-.5)*2).toFixed(1);m.v=+(m.bv+m.fa*.12+(Math.random()-.5)*.3).toFixed(1);m.rt+=.1;
+  const r=sevOf(m);if(r)raise(m,r)}
+ for(const a of A)if(a.status=="open"&&!a.esc&&(t-a.created)/1e3>ESC[a.sev]){a.status="escalated";a.esc=t;log(a,"system","Not acknowledged in time. Escalated to Meera (Supervisor) by email and push.");toast(`${M.find(m=>m.id==a.mid).name} escalated to Meera`)}
+ paint();live()}
+function ackStats(){const x=A.filter(a=>a.acked);return x.length?fmtAge(x.reduce((s,a)=>s+a.acked-a.created,0)/x.length):"–"}
+function paint(){const lf=$("#fl").value,sf=$("#fs").value,mine=$("#fm").checked;
+ const ac=A.filter(a=>a.status!="resolved");
+ $("#kpis").innerHTML=`<div class="kpi c"><b>${ac.filter(a=>a.sev=="critical").length}</b><span>Critical</span></div><div class="kpi w"><b>${ac.filter(a=>a.sev=="warning").length}</b><span>Warning</span></div><div class="kpi e"><b>${ac.filter(a=>a.status=="escalated").length}</b><span>Escalated</span></div><div class="kpi"><b>${ackStats()}</b><span>Avg time to acknowledge</span></div><div class="kpi"><b>${A.filter(a=>a.status=="resolved").length}</b><span>Resolved</span></div>`;
+ $("#lines").innerHTML=LINES.map((n,i)=>{if(lf!==""&&+lf!==i)return"";const ms=M.filter(m=>m.line==i);
+  return `<div class="line"><h2>${n}<span>${ms.filter(m=>!act(m.id)).length} of ${ms.length} healthy</span></h2><div class="grid">${ms.map(m=>{const a=act(m.id),s=a?a.sev:"ok",rp=(R[m.id]||[])[0];
+   return `<button class="tile ${s}" data-m="${m.id}"><b>${m.name}<span class="st">${s=="ok"?"OK":a.status=="escalated"?"Escalated":s=="critical"?"Critical":"Warning"}</span></b><div class="rd">${m.t} °C · ${m.v} mm/s · ${Math.round(m.rt)} h</div><div class="rp">${rp?`Repaired ${fmtD(rp.d)}: ${esc(rp.did)}`:"No repairs logged"}</div></button>`}).join("")}</div></div>`}).join("");
+ let L=ac.filter(a=>(lf===""||M.find(m=>m.id==a.mid).line==lf)&&(!sf||a.sev==sf)&&(!mine||a.owner==cur)).sort((a,b)=>(a.sev=="critical"?0:1)-(b.sev=="critical"?0:1)||a.created-b.created);
+ $("#alerts").innerHTML=L.length?L.map(a=>{const m=M.find(x=>x.id==a.mid);return `<button class="row" data-m="${m.id}"><span class="dot ${a.sev}"></span><span class="m">${m.name}</span><span class="a">${fmtAge(now()-a.created)}</span><span class="s">${a.sig} ${a.val} ${a.u} (limit ${a.thr}) · ${nm(a.owner)} · <span class="chip ${a.status=="escalated"?"escalated":a.sev}">${a.status.replace("_"," ")}</span></span></button>`}).join(""):`<div class="empty">No alerts match these filters. Use “Simulate a fault” to see an early warning appear.</div>`}
+const cell=(l,v,u,w,c)=>`<div class="cell ${v>=c?"critical":v>=w?"warning":""}"><b>${v} ${u}</b><span>${l}</span></div>`;
+const reads=m=>cell("Temperature",m.t,"°C",75,90)+cell("Vibration",m.v,"mm/s",4.5,7)+cell("Since service",Math.round(m.rt),"h",400,480);
+function live(){if(!open)return;const m=M.find(x=>x.id==open),a=act(open);const r=$("#live");if(r)r.innerHTML=reads(m);const g=$("#age");if(g&&a)g.textContent=`Open for ${fmtAge(now()-a.created)}`+(a.status=="open"?` · escalates to Meera in ${Math.max(0,Math.ceil(ESC[a.sev]-(now()-a.created)/1e3))}s`:"")}
+function drawer(){const d=$("#dr");const m=M.find(x=>x.id==open);if(!m){d.classList.remove("on");return}
+ const a=act(m.id),reps=R[m.id]||[],ord=["open","acknowledged","in_progress","resolved"],idx=a?ord.indexOf(a.status=="escalated"?"open":a.status):-1;
+ let h=`<button class="btn x" data-act="close">Close</button><h2>${m.name}</h2><div class="rp">${LINES[m.line]} · Owner ${nm(m.owner)} · Backup ${nm(m.backup)}</div><h3>Live readings</h3><div class="cells" id="live">${reads(m)}</div>`;
+ if(a){h+=`<h3>Alert: ${a.sig} <span class="chip ${a.sev}">${a.sev}</span> ${a.status=="escalated"?'<span class="chip escalated">Escalated</span>':""}</h3>
+ <div>Value ${a.val} ${a.u} against a limit of ${a.thr} ${a.u}. Assigned to <b>${nm(a.owner)}</b>.</div><div class="rp" id="age"></div>
+ <div class="steps">${["Open","Acknowledged","In progress","Resolved"].map((s,i)=>`<span class="${i<idx?"done":i==idx?"on":""}">${s}</span>`).join("")}</div>
+ <div class="acts">${["open","escalated"].includes(a.status)?`<button class="btn p" data-act="ack">Acknowledge</button>`:""}${a.status=="acknowledged"?`<button class="btn p" data-act="prog">Start work</button>`:""}<button class="btn" data-act="rez">Resolve and log repair</button></div>
+ ${rez?`<div class="f panel"><input id="r1" placeholder="What was wrong?"><input id="r2" placeholder="What did you do?"><input id="r3" placeholder="Parts replaced (optional)"><button class="btn p" data-act="save">Save repair and resolve</button></div>`:""}
+ <h3>Suggested steps</h3><ul class="pl"><li>${STEP[a.sig]}</li>${a.sev=="critical"?"<li>Reduce speed to 50%, then stop the machine if the reading keeps rising</li>":"<li>Re-check the reading in 10 minutes and log it</li>"}</ul>
+ <h3>Reassign</h3><div class="f h"><select id="ra">${Object.keys(U).filter(k=>k!="rohan"&&k!=a.owner).map(k=>`<option value="${k}">${nm(k)}</option>`).join("")}</select><input id="rr" placeholder="Reason"><button class="btn" data-act="reas">Reassign</button></div>
+ <h3>Timeline</h3><ul class="tl">${a.log.map(l=>`<li>${esc(l.txt)}<small>${l.who=="system"?"System":nm(l.who)} · ${new Date(l.t).toLocaleTimeString("en-GB")}</small></li>`).join("")}</ul>
+ <div class="f h" style="grid-template-columns:1fr auto"><input id="cm" placeholder="Add a comment"><button class="btn" data-act="cmt">Add comment</button></div>`}
+ h+=`<h3>Last repair</h3>${reps.length?`<div><b>${fmtD(reps[0].d)}</b> by ${nm(reps[0].by)}: ${esc(reps[0].what)}. ${esc(reps[0].did)}.${reps[0].parts?` Parts: ${esc(reps[0].parts)}.`:""}</div>`:`<div class="empty">No repairs logged for this machine.</div>`}
+ ${reps.length>1?`<table>${reps.slice(1).map(r=>`<tr><td>${fmtD(r.d)}</td><td>${esc(r.did)}</td><td>${nm(r.by)}</td></tr>`).join("")}</table>`:""}
+ <h3>Playbook</h3><table><tr><th>Signal</th><th>Warning</th><th>Critical</th></tr>${RULES.map(r=>`<tr><td>${r[1]}</td><td>${r[3]} ${r[2]}</td><td>${r[4]} ${r[2]}</td></tr>`).join("")}</table>
+ <div class="rp" style="margin-top:6px">Escalation: critical alerts go to Meera after 30 s unacknowledged, warnings after 60 s (shortened for the demo; a real plant would use 15 minutes).</div>
+ <h3>Log a manual reading</h3><div class="f h"><select id="ms"><option value="temp">Temperature (°C)</option><option value="vib">Vibration (mm/s)</option><option value="note">Observation</option></select><input id="mv" placeholder="Value or note"><button class="btn" data-act="man">Log reading</button></div>
+ <ul class="tl">${m.log.slice(-3).reverse().map(l=>`<li>${esc(l)}</li>`).join("")}</ul>`;
+ d.innerHTML=h;d.classList.add("on");live()}
+document.addEventListener("click",e=>{const t=e.target.closest("[data-m],[data-act]");if(!t)return;
+ if(t.dataset.m){open=t.dataset.m;rez=false;drawer();return}
+ const m=M.find(x=>x.id==open),a=m&&act(m.id),k=t.dataset.act,v=id=>($(id)||{}).value||"";
+ if(k=="close"){open=null;rez=false}
+ else if(k=="ack"){a.status="acknowledged";a.acked=now();log(a,cur,"Acknowledged.");toast("Alert acknowledged")}
+ else if(k=="prog"){a.status="in_progress";log(a,cur,"Work started.")}
+ else if(k=="rez"){rez=!rez}
+ else if(k=="cmt"){if(v("#cm").trim())log(a,cur,v("#cm").trim())}
+ else if(k=="reas"){if(!v("#rr").trim()){toast("Add a reason to reassign");return}a.owner=v("#ra");log(a,cur,`Reassigned to ${nm(a.owner)}: ${v("#rr").trim()}`);toast(`${nm(a.owner)} notified by email and push`)}
+ else if(k=="man"){const s=v("#ms"),x=v("#mv").trim();if(!x)return;const n=parseFloat(x);
+  if(s=="note"){m.log.push(`${nm(cur)}: ${x}`)}else if(isNaN(n)){toast("Enter a number for this reading");return}
+  else{if(s=="temp"){m.bt=n-m.fa;m.t=n}else{m.bv=n-m.fa*.12;m.v=n}m.log.push(`${nm(cur)}: ${s=="temp"?"temperature "+n+" °C":"vibration "+n+" mm/s"}`);const r=sevOf(m);if(r)raise(m,r)}}
+ else if(k=="save"){if(!v("#r1").trim()||!v("#r2").trim()){toast("Describe what was wrong and what you did");return}
+  (R[m.id]=R[m.id]||[]).unshift({d:new Date(),what:v("#r1").trim(),did:v("#r2").trim(),parts:v("#r3").trim(),by:cur});
+  a.status="resolved";a.res=now();log(a,cur,"Resolved. Repair logged.");m.fault=false;m.fa=0;if(a.sig=="runtime")m.rt=0;rez=false;toast(`${m.name} resolved and repair saved`)}
+ paint();drawer()});
+$("#who").innerHTML=Object.keys(U).map(k=>`<option value="${k}">${U[k]}</option>`).join("");
+$("#fl").innerHTML=`<option value="">All lines</option>`+LINES.map((n,i)=>`<option value="${i}">${n}</option>`).join("");
+$("#who").onchange=e=>{cur=e.target.value;paint()};["#fl","#fs","#fm"].forEach(s=>$(s).onchange=paint);
+$("#sim").onclick=()=>{const ok=M.filter(m=>!m.fault&&!act(m.id));const m=ok[Math.floor(Math.random()*ok.length)];if(!m){toast("Every machine already has an issue");return}m.fault=true;toast(`${m.name} is heating up. Watch the readings climb.`)};
+document.addEventListener("keydown",e=>{if(e.key=="Escape"&&open){open=null;drawer()}});
+tick();setInterval(tick,2000);
+</script></body></html>
