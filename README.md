@@ -78,3 +78,16 @@ This experience helped me understand how to transform a real-world industrial pr
 **Project:** LinePulse Control Hub  
 **Event:** TCS iON AI Hackathon  
 **Participation:** Individual  
+## Certificate of Merit – TCS iON AI Hackathon
+
+Proud to have received a **Certificate of Merit from Tata Consultancy Services (TCS iON)** for securing a Merit position in the AI Hackathon held on 30 October 2026.
+
+The recognition acknowledges my creativity, problem-solving skills and successful completion of the AI challenge.
+
+- **Achievement:** Merit Position
+- **Event:** TCS iON AI Hackathon
+- **Issuing Organisation:** Tata Consultancy Services (TCS iON)
+- **Date of Event:** 30 October 2026
+- **Certificate Issue Date:** 5 November 2026
+
+[View Certificate](certificates/Certificate-of-Merit.pdf)
