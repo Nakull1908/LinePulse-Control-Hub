@@ -79,7 +79,7 @@ Proud recipient of a Certificate of Merit from Tata Consultancy Services (TCS iO
 - Organisation: Tata Consultancy Services – TCS iON
 - Issued Date: 5 November 2026
 
-📄 [View My Certificate](certificates/tcsion_hackathon_certificate)
+📄 [View My Certificate](certificates/tcsionhackathon_certificate)
 
 ## 📸 Project Screenshots
 
